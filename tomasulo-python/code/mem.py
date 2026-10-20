@@ -59,16 +59,9 @@ def put_entry_into_ld_sd_mem(ld_sd_mem, entry):
     if ld_sd_mem.op == 'Sd':
         ld_sd_mem.data = entry.data
 
-# function: check if Sd to be committed in next cycle 
+# function: check if the Sd is the oldest instruction in the ROB (stores write memory at commit)
 def check_if_sd_committable(ld_sd_queue, ROB):
-    flag = False
-    if ld_sd_queue[0].ldsd_tag == ROB[0].dest_tag:
-        flag = True
-    if ld_sd_queue[0].ldsd_tag == ROB[1].dest_tag:
-        # previous ins has been broadcasted
-        if len(ROB[0].cdb)!=0:
-            flag = True
-    return flag
+    return (len(ROB)>0) and (ld_sd_queue[0].dest_tag == ROB[0].ROB_tag)
 
 # function: mem 
 def mem(ld_sd_queue, ld_sd_mem, time_ld_sd_mem, results_buffer, 
@@ -88,8 +81,7 @@ def mem(ld_sd_queue, ld_sd_mem, time_ld_sd_mem, results_buffer,
                 # remove the Ld instruction
                 remove_list.append(element)
                 # write mem cylce in ROB
-                index = find_ROB_entry(ROB, element.dest_tag)
-                ROB[index].mem.append(cycle)
+                ROB[find_ROB_entry(ROB, element.dest_tag)].mem.append(cycle)
     # remove lookforwared Ld
     for element in remove_list:
         ld_sd_queue.remove(element)
@@ -111,12 +103,15 @@ def mem(ld_sd_queue, ld_sd_mem, time_ld_sd_mem, results_buffer,
             if ld_sd_mem.op == 'Ld': 
                 # put Ld data into results_buffer
                 address = ld_sd_mem.address 
-                data = memory[address]
+                # a wrong-path load may use an arbitrary address
+                data = memory[address] if 0 <= address < len(memory) else 0
                 results_buffer.append(fu_result())
                 results_buffer[-1].value = data
                 results_buffer[-1].dest_tag = ld_sd_mem.dest_tag
             # put data into memory for Sd
             else:
+                if not 0 <= ld_sd_mem.address < len(memory):
+                    raise Exception('Sd: memory address %s is out of range' % ld_sd_mem.address)
                 memory[ld_sd_mem.address]=ld_sd_mem.data
 
     '''fetch new instruction into ld_sd_mem'''
@@ -128,7 +123,7 @@ def mem(ld_sd_queue, ld_sd_mem, time_ld_sd_mem, results_buffer,
             # check if this Sd is ready and to be commited 
             if (ld_sd_queue[0].ready==1):
                 # check to be committed in next cycle
-                if (check_if_sd_committable):
+                if (check_if_sd_committable(ld_sd_queue, ROB)):
                     # already have data in Sd
                     if (type(ld_sd_queue[0].data)==int)|(type(ld_sd_queue[0].data)==float):
                         # put the Sd entry into ld_sd_mem
@@ -143,7 +138,7 @@ def mem(ld_sd_queue, ld_sd_mem, time_ld_sd_mem, results_buffer,
                 # ready Ld
                 if (ld_sd_queue[index].op=='Ld')&(ld_sd_queue[index].ready==1):
                     # haven't got data
-                    if (type(ld_sd_queue[0].data)!=int)&(type(ld_sd_queue[0].data)!=float):
+                    if (type(ld_sd_queue[index].data)!=int)&(type(ld_sd_queue[index].data)!=float):
                         # all previous Sd instructions are ready but no address match 
                         if check_all_previous_Sd_no_match(ld_sd_queue, index): 
                             put_entry_into_ld_sd_mem(ld_sd_mem, ld_sd_queue[index])

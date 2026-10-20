@@ -1,0 +1,20 @@
+# Nested loop with memory traffic and a data-dependent inner trip count
+Integer adder    4         1                              2
+FP adder         3         2                              1
+FP multiplier    2         3                              1
+Load/store unit  4         1              2               1
+ROB entries = 64
+Issue width = 1
+R3=3, R5=2, F1=0.5
+Mem[0]=1.0, Mem[4]=2.0, Mem[8]=3.0, Mem[12]=4.0
+Addi R2, R0, 0
+Ld F2, 0(R2)
+Mult.d F3, F2, F1
+Add.d F4, F3, F2
+Sd F4, 32(R2)
+Addi R2, R2, 4
+Addi R3, R3, -1
+Bne R3, R0, -7
+Addi R5, R5, -1
+Addi R3, R0, 3
+Bne R5, R0, -11

@@ -1,0 +1,19 @@
+# Store->load forwarding, memory disambiguation, WAW/WAR through renaming
+Integer adder    4         1                              1
+FP adder         3         2                              1
+FP multiplier    2         4                              1
+Load/store unit  4         1              3               1
+ROB entries = 32
+Issue width = 1
+R1=8, R2=16, F1=1.5, F2=2.5
+Mem[8]=7, Mem[12]=9
+Ld F3, 0(R1)
+Sd F1, 4(R1)
+Ld F4, 4(R1)
+Add.d F5, F4, F3
+Sd F5, 0(R2)
+Ld F6, 0(R2)
+Mult.d F1, F6, F2
+Sd F1, 8(R2)
+Ld F7, 8(R2)
+Add.d F1, F7, F7

@@ -46,42 +46,77 @@ def find_ROB_entry(ROB, tag):
             break
     return index
 
-# function: functional units execution 
+# function: functional units execution
+# every operation in the unit advances by exactly one cycle; operations that are done leave the unit
+# returns (number of operations that started executing in this cycle, number that finished)
 def fu_exe(fu, fu_results, ROB, time_fu, cycle, PC):
-    if len(fu)!=0:
-        for element in fu:
-            element.cycle += 1
-        # write starting cycle 
-        if fu[-1].cycle == 1:
-            index = find_ROB_entry(ROB, fu[-1].dest_tag)
+    started = 0
+    for element in fu:
+        element.cycle += 1
+        # write starting cycle
+        if element.cycle == 1:
+            ROB[find_ROB_entry(ROB, element.dest_tag)].exe.append(cycle)
+            started += 1
+    finished = fu_finish(fu, fu_results, ROB, time_fu, cycle, PC)
+    return started, finished
+
+# function: finish the operations that completed their last execution cycle; returns their number
+def fu_finish(fu, fu_results, ROB, time_fu, cycle, PC):
+    finished = 0
+    for element in list(fu):
+        if element.cycle == time_fu:
+            index = find_ROB_entry(ROB, element.dest_tag)
             ROB[index].exe.append(cycle)
-        # finish cycle
-        if fu[0].cycle == time_fu:
-            index = find_ROB_entry(ROB, fu[0].dest_tag)
-            ROB[index].exe.append(cycle)
-            # calculation result
-            fu_results.append(fu_result())
-            fu_results[-1].dest_tag = fu[0].dest_tag
-            if (fu[0].op=='Add')|(fu[0].op=='Add.d')|(fu[0].op=='Addi'):
-                fu_results[-1].value = fu[0].value1 + fu[0].value2
-            elif (fu[0].op=='Sub')|(fu[0].op=='Sub.d'):
-                fu_results[-1].value = fu[0].value1 - fu[0].value2
-            elif (fu[0].op=='Mult.d'):
-                fu_results[-1].value = fu[0].value1 * fu[0].value2
-            elif (fu[0].op=='Bne'):
-                fu_results.pop()
-                if fu[0].value1 == fu[0].value2:
-                    PC.PC += 1
-                    PC.valid = 1
+            if (element.op=='Bne')|(element.op=='Beq'):
+                # the branch is resolved here; the branch unit handles the result after EX
+                if element.op == 'Bne':
+                    ROB[index].value = (element.value1 != element.value2)
                 else:
-                    index = find_ROB_entry(ROB, fu[0].dest_tag)
-                    offset = ROB[index].dest_tag
-                    PC.PC = int(PC.PC + 1 + offset/4)
-                    PC.valid = 1
+                    ROB[index].value = (element.value1 == element.value2)
+                PC.resolved.append(element.dest_tag)
             else:
-                pass
+                # calculation result
+                fu_results.append(fu_result())
+                fu_results[-1].dest_tag = element.dest_tag
+                if (element.op=='Add')|(element.op=='Add.d')|(element.op=='Addi'):
+                    fu_results[-1].value = element.value1 + element.value2
+                elif (element.op=='Sub')|(element.op=='Sub.d'):
+                    fu_results[-1].value = element.value1 - element.value2
+                elif (element.op=='Mult.d'):
+                    fu_results[-1].value = element.value1 * element.value2
             # remove from fu 
-            fu.popleft()
+            fu.remove(element)
+            finished += 1
+    return finished
+
+# function: move valid instructions from rs into the functional units (at most nfu per cycle)
+# started, finished: operations that already started / finished executing in this cycle
+# pipelined: an unpipelined unit is busy until its operation has finished its last cycle
+def fu_fetch_from_rs(fu, fu_results, rs, ROB, time_fu, cycle, PC, nfu, started, finished, pipelined):
+    deferred = 0
+    for index in range(len(rs)):
+        if not ((rs[index].valid_1st==1)&(rs[index].valid_2nd==1)&(rs[index].busy==1)):
+            continue
+        if (not pipelined) and (len(fu) + finished >= nfu):
+            break
+        # check if it's a waiting instruction (issued in this cycle, executes in the next one)
+        waiting = ROB[find_ROB_entry(ROB, rs[index].dest_tag)].issue[0] >= cycle
+        if waiting:
+            if deferred >= nfu:
+                continue
+        elif started >= nfu:
+            continue
+        fu.append(fu_entry())
+        add_entry_into_fu(fu, rs[index])
+        # remove ins from rs 
+        rs[index].busy = 0
+        if waiting:
+            deferred += 1
+        else:
+            fu[-1].cycle = 1
+            ROB[find_ROB_entry(ROB, fu[-1].dest_tag)].exe.append(cycle)
+            started += 1
+            finished += fu_finish(fu, fu_results, ROB, time_fu, cycle, PC)
 
 # function: ld_sd_execution 
 def ld_sd_execution(ld_sd_exe, time_ld_sd_exe, ld_sd_queue, ROB, cycle):
@@ -94,6 +129,8 @@ def ld_sd_execution(ld_sd_exe, time_ld_sd_exe, ld_sd_queue, ROB, cycle):
             index = find_ROB_entry(ROB, element.dest_tag)
             ROB[index].exe.append(cycle)
             # execute 
+            ld_sd_exe.cycle += 1
+        else:
             ld_sd_exe.cycle += 1
         # write address back to ld_sd_queue
         if ld_sd_exe.cycle == time_ld_sd_exe:
@@ -109,18 +146,18 @@ def ld_sd_execution(ld_sd_exe, time_ld_sd_exe, ld_sd_queue, ROB, cycle):
             ld_sd_exe.busy = 0
 
 # function: execution
-def exe(fu_int_adder, time_fu_int_adder,
-        fu_fp_adder, time_fu_fp_adder,
-        fu_fp_multi, time_fu_fp_multi, results_buffer,
+def exe(fu_int_adder, time_fu_int_adder, nfu_int_adder,
+        fu_fp_adder, time_fu_fp_adder, nfu_fp_adder,
+        fu_fp_multi, time_fu_fp_multi, nfu_fp_multi, results_buffer,
         rs_int_adder, rs_fp_adder, rs_fp_multi, 
         ld_sd_exe, time_ld_sd_exe, ld_sd_queue,
         cycle, ROB, PC):
     '''execution in fu and ld_sd address calculation'''
     ld_sd_execution(ld_sd_exe, time_ld_sd_exe, ld_sd_queue, ROB, cycle) 
     # functional units 
-    fu_exe(fu_int_adder, results_buffer, ROB, time_fu_int_adder, cycle, PC)
-    fu_exe(fu_fp_adder, results_buffer, ROB, time_fu_fp_adder, cycle, PC)
-    fu_exe(fu_fp_multi, results_buffer, ROB, time_fu_fp_multi, cycle, PC)
+    started_int, finished_int = fu_exe(fu_int_adder, results_buffer, ROB, time_fu_int_adder, cycle, PC)
+    started_fp_adder, finished_fp_adder = fu_exe(fu_fp_adder, results_buffer, ROB, time_fu_fp_adder, cycle, PC)
+    started_fp_multi, finished_fp_multi = fu_exe(fu_fp_multi, results_buffer, ROB, time_fu_fp_multi, cycle, PC)
     '''fetch instructions from rs and ld_sd_queue'''
     # from ld_sd_queue
     # check valid ins in ld_sd_queue 
@@ -135,33 +172,10 @@ def exe(fu_int_adder, time_fu_int_adder,
         if ROB[find_ROB_entry(ROB, ld_sd_queue[index].dest_tag)].issue[0] < cycle:
             ld_sd_execution(ld_sd_exe, time_ld_sd_exe, ld_sd_queue, ROB, cycle)
     # from rs 
-    # int_adder
-    # fetch valid instruction 
-    if check_valid_ins_in_rs(rs_int_adder)>=0:
-        index = check_valid_ins_in_rs(rs_int_adder)
-        fu_int_adder.append(fu_entry())
-        add_entry_into_fu(fu_int_adder, rs_int_adder[index])
-        # check if it's a waiting instruction
-        if ROB[find_ROB_entry(ROB, rs_int_adder[index].dest_tag)].issue[0] < cycle:
-            fu_exe(fu_int_adder, results_buffer, ROB, time_fu_int_adder, cycle, PC)
-        # remove ins from rs 
-        rs_int_adder[index].busy = 0
-    # fp_adder
-    if check_valid_ins_in_rs(rs_fp_adder)>=0:
-        index = check_valid_ins_in_rs(rs_fp_adder)
-        fu_fp_adder.append(fu_entry())
-        add_entry_into_fu(fu_fp_adder, rs_fp_adder[index])
-        if ROB[find_ROB_entry(ROB, rs_fp_adder[index].dest_tag)].issue[0] < cycle:
-            fu_exe(fu_fp_adder, results_buffer, ROB, time_fu_fp_adder, cycle, PC)
-        # remove ins from rs 
-        rs_fp_adder[index].busy = 0
-    # fp_multi
-    if check_valid_ins_in_rs(rs_fp_multi)>=0:
-        index = check_valid_ins_in_rs(rs_fp_multi)
-        fu_fp_multi.append(fu_entry())
-        add_entry_into_fu(fu_fp_multi, rs_fp_multi[index])
-        if ROB[find_ROB_entry(ROB, rs_fp_multi[index].dest_tag)].issue[0] < cycle:
-            fu_exe(fu_fp_multi, results_buffer, ROB, time_fu_fp_multi, cycle, PC)
-        # remove ins from rs 
-        rs_fp_multi[index].busy = 0
-
+    # the integer adder is not pipelined, the fp units are
+    fu_fetch_from_rs(fu_int_adder, results_buffer, rs_int_adder, ROB, time_fu_int_adder, cycle, PC,
+                     nfu_int_adder, started_int, finished_int, False)
+    fu_fetch_from_rs(fu_fp_adder, results_buffer, rs_fp_adder, ROB, time_fu_fp_adder, cycle, PC,
+                     nfu_fp_adder, started_fp_adder, finished_fp_adder, True)
+    fu_fetch_from_rs(fu_fp_multi, results_buffer, rs_fp_multi, ROB, time_fu_fp_multi, cycle, PC,
+                     nfu_fp_multi, started_fp_multi, finished_fp_multi, True)

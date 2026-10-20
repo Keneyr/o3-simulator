@@ -24,11 +24,14 @@ def boroadcast(cdb, rat_int, rat_fp,
     index = find_ROB_entry(ROB, dest_tag)
     reg_tag = ROB[index].dest_tag
     # rat_int
-    if reg_tag[0] == 'R':
-        rat_int[int(reg_tag[1:])] = cdb.value
+    # only if this instruction is still the latest writer of the register
+    if (reg_tag[0] == 'R') and (reg_tag != 'R0'):
+        if rat_int[int(reg_tag[1:])] == dest_tag:
+            rat_int[int(reg_tag[1:])] = cdb.value
     # rat_fp
     if reg_tag[0] == 'F':
-        rat_fp[int(reg_tag[1:])] = cdb.value 
+        if rat_fp[int(reg_tag[1:])] == dest_tag:
+            rat_fp[int(reg_tag[1:])] = cdb.value 
     # rs list
     rs_list = [rs_int_adder, rs_fp_adder, rs_fp_multi]
     for rs in rs_list:

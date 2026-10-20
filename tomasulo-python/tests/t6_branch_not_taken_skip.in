@@ -1,0 +1,20 @@
+# Forward branches (taken and not taken) with wrong-path instructions that must be squashed
+Integer adder    4         1                              2
+FP adder         3         2                              1
+FP multiplier    2         4                              1
+Load/store unit  4         1              2               1
+ROB entries = 32
+Issue width = 1
+R1=3, R2=3, R3=4
+Mem[0]=1.0
+Beq R1, R2, 2
+Addi R5, R0, 99
+Addi R6, R0, 98
+Bne R1, R3, 1
+Addi R7, R0, 97
+Addi R8, R1, 1
+Beq R1, R3, 3
+Addi R9, R0, 5
+Ld F1, 0(R0)
+Sd F1, 20(R0)
+Addi R10, R0, 6

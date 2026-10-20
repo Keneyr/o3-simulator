@@ -7,7 +7,9 @@
 3. update RAT
 """
 from collections import namedtuple, deque
+import re
 from init import ld_sd_entry, ROB_entry
+from branch import predict
 
 # function: find a tag for ld_sd_entry 
 def find_tag_new_ldsd_entry(ld_sd_queue, size_ld_sd_queue):
@@ -33,10 +35,12 @@ def put_ins_into_ROB(ROB, size_ROB, PC, cycle, ins, ldsd_tag):
     # dest_tag
     if ins.split(' ')[0]=='Sd': # SD
         ROB[-1].dest_tag = ldsd_tag
-    elif ins.split(' ')[0]=='Bne': # BNE
+    elif ins.split(' ')[0] in ('Bne', 'Beq'): # branches: the offset (in instructions)
         ROB[-1].dest_tag = int(ins.split(' ')[-1]) 
     else: # ALU and LD instructions
         ROB[-1].dest_tag = ins.split(' ')[1]
+    # prediction (only used by branches)
+    ROB[-1].pred = False
     # issue 
     ROB[-1].issue.append(cycle)
 
@@ -85,7 +89,7 @@ def put_ins_into_rs(station, index, ins, ROB, rat_int, rat_fp):
     # dest_tag
     entry.dest_tag = ROB[-1].ROB_tag
 
-# function: put bne into rs
+# function: put bne/beq into rs
 def put_bne_into_rs(rs_int_adder, index, ins, rat_int, rat_fp, ROB):
     entry = rs_int_adder[index]
     entry.busy = 1
@@ -140,8 +144,9 @@ def put_ins_into_ldsd(ldsd_tag, ld_sd_queue, ins, ROB, rat_int, rat_fp):
         
     ld_sd_queue[-1].dest_tag = ROB[-1].ROB_tag
     # immediate and reg value 
-    ld_sd_queue[-1].immediate = int(ins.split(' ')[-1][:-4])
-    register = ins.split(' ')[-1][-3:-1] # register name 
+    m = re.fullmatch(r'(-?\d+)\((R\d+)\)', ins.split(' ')[-1])
+    ld_sd_queue[-1].immediate = int(m.group(1))
+    register = m.group(2) # register name 
     if (type(rat_int[int(register[1:])]) == str):
         ld_sd_queue[-1].reg_tag = rat_int[int(register[1:])]
         ld_sd_queue[-1].valid = 0
@@ -160,20 +165,23 @@ def check_rs_space(station):
 
 # update RAT
 def update_rat(ROB, rat_int, rat_fp):
-    if ROB[-1].dest_tag[0] == 'F':
+    if ROB[-1].dest_tag == 'R0': # R0 is hardwired to 0
+        pass
+    elif ROB[-1].dest_tag[0] == 'F':
         rat_fp[int(ROB[-1].dest_tag[1:])] = ROB[-1].ROB_tag
     elif ROB[-1].dest_tag[0] == 'R':
         rat_int[int(ROB[-1].dest_tag[1:])] = ROB[-1].ROB_tag
     else:
         pass
 
-""""""
-def issue(cycle, PC, instructions, ROB, size_ROB, 
+# function: issue one instruction; returns 0 if it cannot be issued, 1 if issued,
+# 2 if issued and fetch is redirected (branch predicted taken)
+def issue_one(cycle, PC, instructions, ROB, size_ROB, 
         rs_int_adder, 
         rs_fp_adder, 
         rs_fp_multi, 
         ld_sd_queue, size_ld_sd_queue, 
-        rat_int, rat_fp):
+        rat_int, rat_fp, btb):
     # fetch 1 instruction 
     ins = instructions[PC.PC]
     op = ins.split(' ')[0] 
@@ -192,6 +200,7 @@ def issue(cycle, PC, instructions, ROB, size_ROB,
             update_rat(ROB, rat_int, rat_fp)
             # PC
             PC.PC +=1
+            return 1
     # integer adder instructions
     elif (op=='Add')|(op=='Addi')|(op=='Sub'):
         # check space
@@ -205,6 +214,7 @@ def issue(cycle, PC, instructions, ROB, size_ROB,
             update_rat(ROB, rat_int, rat_fp)
             # PC
             PC.PC +=1
+            return 1
     # fp adder instructions
     elif (op=='Add.d')|(op=='Sub.d'):
         # check space
@@ -218,6 +228,7 @@ def issue(cycle, PC, instructions, ROB, size_ROB,
             update_rat(ROB, rat_int, rat_fp)
             # PC
             PC.PC +=1
+            return 1
     # fp multiplier instructions
     elif (op=='Mult.d'): 
         # check space
@@ -231,8 +242,9 @@ def issue(cycle, PC, instructions, ROB, size_ROB,
             update_rat(ROB, rat_int, rat_fp)
             # PC
             PC.PC +=1
-    # Bne 
-    elif (op=='Bne'):
+            return 1
+    # Beq/Bne
+    elif (op=='Bne')|(op=='Beq'):
         # check space
         if (len(ROB)<size_ROB)&(check_rs_space(rs_int_adder)>=0):
             # put ins into ROB
@@ -240,8 +252,29 @@ def issue(cycle, PC, instructions, ROB, size_ROB,
             # put ins into rs_int_adder
             index = check_rs_space(rs_int_adder)
             put_bne_into_rs(rs_int_adder, index, ins, rat_int, rat_fp, ROB)
-            # PC
-            PC.valid = 0
+            # predict the branch and follow the prediction
+            taken, next_PC = predict(btb, PC.PC)
+            ROB[-1].pred = taken
+            PC.PC = next_PC
+            return 2 if taken else 1
     else:
         pass
+    return 0
 
+# function: issue up to issue_width instructions in program order
+# stops at the first instruction that cannot be issued, or after a predicted-taken branch
+def issue(cycle, PC, instructions, ROB, size_ROB, 
+        rs_int_adder, 
+        rs_fp_adder, 
+        rs_fp_multi, 
+        ld_sd_queue, size_ld_sd_queue, 
+        rat_int, rat_fp, btb, issue_width):
+    for _ in range(issue_width):
+        if not (0 <= PC.PC < len(instructions)):
+            break
+        result = issue_one(cycle, PC, instructions, ROB, size_ROB, 
+                rs_int_adder, rs_fp_adder, rs_fp_multi, 
+                ld_sd_queue, size_ld_sd_queue, 
+                rat_int, rat_fp, btb)
+        if result != 1:
+            break
