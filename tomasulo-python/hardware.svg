@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1210 890" width="1210" height="890" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#333"/></marker>
+    <marker id="r" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#c62828"/></marker>
+  </defs>
+  <rect width="1210" height="890" fill="#ffffff"/>
+  <text x="605" y="20" text-anchor="middle" font-size="17" font-weight="bold">Hardware modelled by the simulator (in-order multi-issue Tomasulo with ROB)</text>
+
+  <!-- program -->
+  <rect x="30" y="60" width="180" height="90" rx="6" fill="#eeeeee" stroke="#555"/>
+  <text x="120" y="90" text-anchor="middle" font-weight="bold">Program</text>
+  <text x="120" y="110" text-anchor="middle" font-size="12">instruction list</text>
+  <text x="120" y="128" text-anchor="middle" font-size="12">PC = next instruction</text>
+  <line x1="210" y1="105" x2="248" y2="105" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- issue -->
+  <rect x="250" y="35" width="920" height="145" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+  <text x="265" y="58" font-weight="bold" font-size="15">ISSUE: fetch + decode + rename</text>
+  <text x="560" y="58" font-size="12">up to "Issue width" (1-4) instructions per cycle, in program order, stops at the first stall</text>
+  <rect x="265" y="75" width="300" height="90" rx="5" fill="#fff" stroke="#1565c0"/>
+  <text x="415" y="95" text-anchor="middle" font-weight="bold">RAT (register alias table)</text>
+  <text x="415" y="115" text-anchor="middle" font-size="12">rat_int[32], rat_fp[32]</text>
+  <text x="415" y="133" text-anchor="middle" font-size="12">register -> value (ready)</text>
+  <text x="415" y="150" text-anchor="middle" font-size="12">or ROB tag (still being computed)</text>
+  <rect x="580" y="75" width="330" height="90" rx="5" fill="#fff" stroke="#c62828" stroke-width="2.5"/>
+  <text x="745" y="95" text-anchor="middle" font-weight="bold" fill="#c62828">Branch predictor (NEW)</text>
+  <text x="745" y="115" text-anchor="middle" font-size="12">BTB: 8 entries, index = PC mod 8</text>
+  <text x="745" y="133" text-anchor="middle" font-size="12">entry = (branch PC, target PC, 1-bit taken)</text>
+  <text x="745" y="150" text-anchor="middle" font-size="12">miss = predict not taken; used at ISSUE</text>
+  <rect x="925" y="75" width="230" height="90" rx="5" fill="#fff" stroke="#c62828" stroke-width="2.5"/>
+  <text x="1040" y="95" text-anchor="middle" font-weight="bold" fill="#c62828">PC control (NEW)</text>
+  <text x="1040" y="115" text-anchor="middle" font-size="12">PC follows the prediction</text>
+  <text x="1040" y="133" text-anchor="middle" font-size="12">resume = n+2 after a</text>
+  <text x="1040" y="150" text-anchor="middle" font-size="12">misprediction found in cycle n</text>
+
+  <!-- arrows issue -> RS -->
+  <g stroke="#333" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="170" y1="180" x2="170" y2="223"/>
+    <line x1="455" y1="180" x2="455" y2="223"/>
+    <line x1="725" y1="180" x2="725" y2="223"/>
+    <line x1="1020" y1="180" x2="1020" y2="223"/>
+  </g>
+
+  <!-- reservation stations -->
+  <g fill="#fff8e1" stroke="#f9a825" stroke-width="1.5">
+    <rect x="30" y="225" width="280" height="95" rx="6"/>
+    <rect x="330" y="225" width="250" height="95" rx="6"/>
+    <rect x="600" y="225" width="250" height="95" rx="6"/>
+    <rect x="870" y="225" width="300" height="95" rx="6"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="170" y="246" font-weight="bold">RS: integer adder (+ Beq/Bne)</text>
+    <text x="455" y="246" font-weight="bold">RS: FP adder</text>
+    <text x="725" y="246" font-weight="bold">RS: FP multiplier</text>
+    <text x="1020" y="246" font-weight="bold">Load/Store queue (program order)</text>
+  </g>
+  <g text-anchor="middle" font-size="11.5">
+    <text x="170" y="266">busy | op</text>
+    <text x="170" y="283">tag1 | value1 | valid1</text>
+    <text x="170" y="300">tag2 | value2 | valid2 | dest_tag</text>
+    <text x="455" y="266">busy | op</text>
+    <text x="455" y="283">tag1 | value1 | valid1</text>
+    <text x="455" y="300">tag2 | value2 | valid2 | dest_tag</text>
+    <text x="725" y="266">busy | op</text>
+    <text x="725" y="283">tag1 | value1 | valid1</text>
+    <text x="725" y="300">tag2 | value2 | valid2 | dest_tag</text>
+    <text x="1020" y="266">op | reg_tag/reg_value/valid | immediate</text>
+    <text x="1020" y="283">address | ready | data | dest_tag</text>
+    <text x="1020" y="300">loads wait for older store addresses</text>
+  </g>
+
+  <!-- arrows RS -> FU -->
+  <g stroke="#333" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="170" y1="320" x2="170" y2="358"/>
+    <line x1="455" y1="320" x2="455" y2="358"/>
+    <line x1="725" y1="320" x2="725" y2="358"/>
+    <line x1="1020" y1="320" x2="1020" y2="358"/>
+  </g>
+  <text x="178" y="345" font-size="11">operands ready</text>
+
+  <!-- functional units -->
+  <g fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5">
+    <rect x="30" y="360" width="280" height="60" rx="6"/>
+    <rect x="330" y="360" width="250" height="60" rx="6"/>
+    <rect x="600" y="360" width="250" height="60" rx="6"/>
+    <rect x="870" y="360" width="300" height="60" rx="6"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="170" y="385" font-weight="bold">INT ADD x N</text>
+    <text x="170" y="404" font-size="12">not pipelined (Add, Addi, Sub, branch compare)</text>
+    <text x="455" y="385" font-weight="bold">FP ADD x N</text>
+    <text x="455" y="404" font-size="12">pipelined (Add.d, Sub.d)</text>
+    <text x="725" y="385" font-weight="bold">FP MULT x N</text>
+    <text x="725" y="404" font-size="12">pipelined (Mult.d)</text>
+    <text x="1020" y="385" font-weight="bold">Address adder</text>
+    <text x="1020" y="404" font-size="12">EX of Ld/Sd: base + offset</text>
+  </g>
+
+  <!-- branch resolution -->
+  <line x1="110" y1="420" x2="110" y2="447" stroke="#c62828" stroke-width="2" marker-end="url(#r)"/>
+  <text x="118" y="438" font-size="11" fill="#c62828">taken?</text>
+  <rect x="30" y="449" width="205" height="102" rx="6" fill="#ffebee" stroke="#c62828" stroke-width="2.5"/>
+  <text x="132" y="467" text-anchor="middle" font-weight="bold" fill="#c62828">Branch resolution (NEW)</text>
+  <g text-anchor="middle" font-size="11">
+    <text x="132" y="485">end of EX: compare with prediction</text>
+    <text x="132" y="501">train BTB; if wrong:</text>
+    <text x="132" y="517">squash younger instructions,</text>
+    <text x="132" y="533">rebuild RAT, refetch in cycle n+2</text>
+  </g>
+
+  <!-- memory -->
+  <line x1="1020" y1="420" x2="1020" y2="447" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="870" y="449" width="300" height="70" rx="6" fill="#fff3e0" stroke="#e65100" stroke-width="1.5"/>
+  <text x="1020" y="470" text-anchor="middle" font-weight="bold">Data memory (256 B = 64 words)</text>
+  <text x="1020" y="488" text-anchor="middle" font-size="12">single port, not pipelined</text>
+  <text x="1020" y="506" text-anchor="middle" font-size="12">store-to-load forwarding from the queue</text>
+
+  <!-- CDB -->
+  <rect x="30" y="565" width="1140" height="34" rx="6" fill="#37474f"/>
+  <text x="600" y="587" text-anchor="middle" fill="#fff" font-weight="bold" font-size="14">CDB: ONE common data bus, one result (value, tag) per cycle  [results_buffer -> CDB]</text>
+  <g stroke="#333" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="270" y1="420" x2="270" y2="563"/>
+    <line x1="455" y1="420" x2="455" y2="563"/>
+    <line x1="725" y1="420" x2="725" y2="563"/>
+    <line x1="1020" y1="519" x2="1020" y2="563"/>
+  </g>
+  <text x="278" y="500" font-size="11">results</text>
+  <text x="463" y="500" font-size="11">results</text>
+  <text x="733" y="500" font-size="11">results</text>
+  <text x="1028" y="545" font-size="11">load data</text>
+
+  <!-- broadcast -->
+  <g stroke="#333" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="600" y1="599" x2="600" y2="641"/>
+  </g>
+  <text x="610" y="618" font-size="12">broadcast the tag: waiting RS operands and Sd data get the value, RAT is updated,</text>
+  <text x="610" y="634" font-size="12">the ROB entry is marked done</text>
+
+  <!-- ROB -->
+  <rect x="30" y="643" width="1140" height="150" rx="8" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="2"/>
+  <text x="45" y="663" font-weight="bold" font-size="14">ROB: reorder buffer (circular queue, program order; one entry per in-flight instruction)</text>
+  <g font-family="Courier New, monospace" font-size="12" font-weight="bold">
+    <text x="85" y="688">ROB_tag</text>
+    <text x="175" y="688">PC</text>
+    <text x="225" y="688">dest_tag</text>
+    <text x="320" y="688">value</text>
+    <text x="395" y="688">issue</text>
+    <text x="465" y="688">exe</text>
+    <text x="545" y="688">mem</text>
+    <text x="615" y="688">cdb</text>
+    <text x="685" y="688">commit</text>
+    <text x="765" y="688">pred</text>
+  </g>
+  <line x1="45" y1="694" x2="820" y2="694" stroke="#6a1b9a"/>
+  <g font-family="Courier New, monospace" font-size="12">
+    <text x="85" y="712">ROB0</text><text x="175" y="712">0</text><text x="225" y="712">F1</text><text x="320" y="712">30.1</text><text x="395" y="712">[1]</text><text x="465" y="712">[2,4]</text><text x="545" y="712">[]</text><text x="615" y="712">[5]</text><text x="685" y="712">[]</text><text x="765" y="712">False</text>
+    <text x="85" y="732">ROB1</text><text x="175" y="732">1</text><text x="225" y="732">F4</text><text x="320" y="732">-</text><text x="395" y="732">[1]</text><text x="465" y="732">[2,2]</text><text x="545" y="732">[3,6]</text><text x="615" y="732">[]</text><text x="685" y="732">[]</text><text x="765" y="732">False</text>
+    <text x="85" y="752">ROB3</text><text x="175" y="752">3</text><text x="225" y="752">-4</text><text x="320" y="752">-</text><text x="395" y="752">[2]</text><text x="465" y="752">[]</text><text x="545" y="752">[]</text><text x="615" y="752">[]</text><text x="685" y="752">[]</text><text x="765" y="752">False</text>
+  </g>
+  <text x="85" y="774" font-size="11" fill="#555">example rows: Add.d F1,F2,F3 / Ld F4,8(R1) / Bne ... -4 (dest_tag = branch offset; Sd: load/store slot)</text>
+  <text x="48" y="712" font-size="12" fill="#6a1b9a">head</text>
+  <text x="838" y="712" font-size="12" font-weight="bold">head = oldest instruction:</text>
+  <text x="838" y="730" font-size="12">commits when done (in order)</text>
+  <text x="838" y="752" font-size="12" font-weight="bold">tail: ISSUE allocates here</text>
+  <text x="838" y="770" font-size="12" fill="#c62828">pred (NEW): predicted taken?</text>
+  <text x="838" y="786" font-size="12">issue/exe/mem/cdb/commit = stage cycles</text>
+
+  <!-- ISSUE -> ROB allocation (right side) -->
+  <path d="M1170,105 L1192,105 L1192,718 L1172,718" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+  <text transform="translate(1203,420) rotate(90)" text-anchor="middle" font-size="12">ISSUE allocates a ROB entry (in order)</text>
+
+  <!-- branch recovery to ROB -->
+  <path d="M132,551 L132,643" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#r)"/>
+  <text x="140" y="600" font-size="11" fill="#c62828" transform="translate(0,22)">squash</text>
+
+  <!-- commit -->
+  <line x1="280" y1="793" x2="280" y2="823" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="30" y="825" width="500" height="44" rx="6" fill="#e0f2f1" stroke="#00695c" stroke-width="1.5"/>
+  <text x="280" y="845" text-anchor="middle" font-weight="bold">Architectural registers R0-R31, F0-F31</text>
+  <text x="280" y="861" text-anchor="middle" font-size="12">written at COMMIT, in order (R0 is always 0)</text>
+  <text x="290" y="812" font-size="12">commit: write register</text>
+
+  <path d="M900,793 L900,830" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#a)"/>
+  <text x="910" y="812" font-size="12">Sd at the ROB head writes memory</text>
+  <rect x="780" y="832" width="390" height="38" rx="6" fill="#fff3e0" stroke="#e65100"/>
+  <text x="975" y="856" text-anchor="middle" font-size="12">data memory (same memory as above)</text>
+
+  <!-- legend -->
+  <rect x="560" y="828" width="14" height="14" fill="#fff" stroke="#c62828" stroke-width="2.5"/>
+  <text x="580" y="840" font-size="12">red = added</text>
+  <text x="560" y="858" font-size="12">in this assignment</text>
+</svg>

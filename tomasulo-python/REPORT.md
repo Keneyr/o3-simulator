@@ -10,63 +10,11 @@ The original code was a **single-issue** Tomasulo simulator (one instruction fet
 
 ### 1.1 Overview figure
 
-The processor is a pipeline of five stages. Instructions flow from the top to the bottom; the **ROB** keeps them in program order, and the **CDB** is the single bus that returns results.
+Instructions flow from the top to the bottom: ISSUE, reservation stations, execution units (and memory), the CDB, and finally the ROB, which keeps program order and commits to the registers.
 
-```mermaid
-flowchart TD
-    PROG["Program (list of instructions)<br/>PC = index of the next instruction"] --> ISSUE
+![Hardware modelled by the simulator](hardware.svg)
 
-    subgraph S1["Stage 1: ISSUE  (up to 'Issue width' instructions per cycle, in order)"]
-        ISSUE["Fetch + decode + rename"]
-        BTB["Branch predictor<br/>BTB: 8 entries, 1-bit"]
-        RAT["RAT<br/>register -> ROB tag or value"]
-        ISSUE <--> BTB
-        ISSUE <--> RAT
-    end
-
-    ISSUE -->|"allocate entry"| ROB
-    ISSUE --> RSI["RS: integer adder<br/>(also Beq/Bne)"]
-    ISSUE --> RSA["RS: FP adder"]
-    ISSUE --> RSM["RS: FP multiplier"]
-    ISSUE --> LSQ["Load/Store queue<br/>(program order)"]
-
-    subgraph S2["Stage 2: EX"]
-        FUI["INT ADD x N<br/>not pipelined"]
-        FUA["FP ADD x N<br/>pipelined"]
-        FUM["FP MULT x N<br/>pipelined"]
-        AGU["Address adder<br/>(Ld/Sd)"]
-    end
-
-    RSI --> FUI
-    RSA --> FUA
-    RSM --> FUM
-    LSQ --> AGU
-    FUI -->|"branch outcome"| BR["Branch resolution<br/>wrong? squash + rebuild RAT<br/>fetch again at cycle n+2"]
-    BR -.->|"update"| BTB
-    BR -.->|"clear younger instructions"| ROB
-
-    subgraph S3["Stage 3: MEM (Ld/Sd only)"]
-        MEM["Data memory 256 B<br/>single port, not pipelined<br/>store-to-load forwarding"]
-    end
-    AGU --> LSQ
-    LSQ --> MEM
-
-    subgraph S4["Stage 4: WB"]
-        RB["results_buffer"] --> CDB["CDB<br/>ONE result per cycle"]
-    end
-    FUI --> RB
-    FUA --> RB
-    FUM --> RB
-    MEM --> RB
-    CDB -->|"broadcast: wake up waiting RS / Sd data,<br/>update RAT, mark ROB entry done"| ROB
-
-    subgraph S5["Stage 5: COMMIT (in order)"]
-        ROB["ROB (circular queue)<br/>head = oldest instruction"]
-        ARF["Architectural registers<br/>R0-R31, F0-F31 (R0 = 0)"]
-    end
-    ROB -->|"head done"| ARF
-    ROB -->|"Sd at head"| MEM
-```
+*(Figure source: [hardware.svg](hardware.svg). Red boxes are the parts added in this assignment.)*
 
 How to read it:
 
