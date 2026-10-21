@@ -8,45 +8,75 @@ The original code was a **single-issue** Tomasulo simulator (one instruction fet
 
 ## 1. Hardware modelled
 
-```
-                         instruction memory (program list, PC counts instructions)
-                                          |
-                                          v
-   +------------------------------- ISSUE (fetch+decode+rename) ---------------------------+
-   |  issues up to <Issue width> instructions per cycle, in program order                  |
-   |  Branch unit: BTB (8 entries, index = PC mod 8, 1-bit taken/not-taken)  <-- predict   |
-   |  RAT (register alias table): reg -> ROB tag (value not ready) or the value            |
-   +---+--------------+----------------+-----------------+---------------------+----------+
-       |              |                |                 |                     |
-       v              v                v                 v                     v
-  +---------+   +----------+    +-------------+   +-----------------+    +-------------+
-  | RS int  |   | RS FP    |    | RS FP mult  |   | Load/Store queue|    |     ROB     |
-  | adder   |   | adder    |    |             |   | (program order) |    | (in order,  |
-  | (+Beq/  |   |          |    |             |   | address, data   |    |  holds tag, |
-  |  Bne)   |   |          |    |             |   |  ready, ...)    |    |  value,     |
-  +----+----+   +----+-----+    +------+------+   +--------+--------+    |  pred and   |
-       |             |                |                   |             |  the cycle  |
-       v             v                v                   v             |  of every   |
-  +---------+   +----------+    +-------------+   +-----------------+   |  stage)     |
-  | INT ADD |   | FP ADD   |    | FP MULT     |   | address adder   |   +------+------+
-  | not     |   | pipelined|    | pipelined   |   | (EX of Ld/Sd)   |          ^
-  |pipelined|   | N units  |    | N units     |   +--------+--------+          |
-  | N units |   +----+-----+    +------+------+            |                   |
-  +----+----+        |                 |                   v                   |
-       |             |                 |            +-------------+            |
-       | Bne/Beq     |                 |            |   MEMORY    |            |
-       | taken? ---> Branch recovery   |            | single port |            |
-       |   (squash younger, rebuild    |            | not pipelined            |
-       |    RAT, fetch again n+2)      |            | 256 B (64 w)|            |
-       v             v                 v            +------+------+            |
-  +-----------------------------------------------------------+---------+      |
-  |  results_buffer  --->  CDB (ONE common data bus, 1 result/cycle)  ---+------+
-  +-----------------------------------------------------------------------+
-        broadcast: updates RAT, waiting RS operands, Ld/Sd queue, and the ROB entry
+### 1.1 Overview figure
 
-  COMMIT: the ROB head leaves in order; the architectural registers (R0 is always 0)
-          are written; a store writes memory when it is the ROB head.
+The processor is a pipeline of five stages. Instructions flow from the top to the bottom; the **ROB** keeps them in program order, and the **CDB** is the single bus that returns results.
+
+```mermaid
+flowchart TD
+    PROG["Program (list of instructions)<br/>PC = index of the next instruction"] --> ISSUE
+
+    subgraph S1["Stage 1: ISSUE  (up to 'Issue width' instructions per cycle, in order)"]
+        ISSUE["Fetch + decode + rename"]
+        BTB["Branch predictor<br/>BTB: 8 entries, 1-bit"]
+        RAT["RAT<br/>register -> ROB tag or value"]
+        ISSUE <--> BTB
+        ISSUE <--> RAT
+    end
+
+    ISSUE -->|"allocate entry"| ROB
+    ISSUE --> RSI["RS: integer adder<br/>(also Beq/Bne)"]
+    ISSUE --> RSA["RS: FP adder"]
+    ISSUE --> RSM["RS: FP multiplier"]
+    ISSUE --> LSQ["Load/Store queue<br/>(program order)"]
+
+    subgraph S2["Stage 2: EX"]
+        FUI["INT ADD x N<br/>not pipelined"]
+        FUA["FP ADD x N<br/>pipelined"]
+        FUM["FP MULT x N<br/>pipelined"]
+        AGU["Address adder<br/>(Ld/Sd)"]
+    end
+
+    RSI --> FUI
+    RSA --> FUA
+    RSM --> FUM
+    LSQ --> AGU
+    FUI -->|"branch outcome"| BR["Branch resolution<br/>wrong? squash + rebuild RAT<br/>fetch again at cycle n+2"]
+    BR -.->|"update"| BTB
+    BR -.->|"clear younger instructions"| ROB
+
+    subgraph S3["Stage 3: MEM (Ld/Sd only)"]
+        MEM["Data memory 256 B<br/>single port, not pipelined<br/>store-to-load forwarding"]
+    end
+    AGU --> LSQ
+    LSQ --> MEM
+
+    subgraph S4["Stage 4: WB"]
+        RB["results_buffer"] --> CDB["CDB<br/>ONE result per cycle"]
+    end
+    FUI --> RB
+    FUA --> RB
+    FUM --> RB
+    MEM --> RB
+    CDB -->|"broadcast: wake up waiting RS / Sd data,<br/>update RAT, mark ROB entry done"| ROB
+
+    subgraph S5["Stage 5: COMMIT (in order)"]
+        ROB["ROB (circular queue)<br/>head = oldest instruction"]
+        ARF["Architectural registers<br/>R0-R31, F0-F31 (R0 = 0)"]
+    end
+    ROB -->|"head done"| ARF
+    ROB -->|"Sd at head"| MEM
 ```
+
+How to read it:
+
+* **ISSUE** takes instructions in order, looks up source operands in the **RAT** (either a value, or the tag of the ROB entry that will produce it), creates a **ROB** entry and puts the instruction in a reservation station (RS) or the load/store queue.
+* A reservation station holds the instruction until both operands are available (they may arrive from the **CDB**), then it enters a functional unit (**EX**).
+* Loads and stores calculate their address in EX, then use **MEM**; a store writes memory only at commit.
+* Results go through `results_buffer` onto the **CDB** (one per cycle), which wakes up everything waiting for that tag.
+* **COMMIT** retires the oldest instruction in the ROB and writes the architectural register.
+
+### 1.2 Mapping to the code
 
 | Hardware | Where in code | Notes |
 |---|---|---|
@@ -57,6 +87,71 @@ The original code was a **single-issue** Tomasulo simulator (one instruction fet
 | RAT | `rat_int`, `rat_fp` | |
 | CDB | `cdb`, `results_buffer`, `wb.py` | one broadcast per cycle |
 | Branch predictor / BTB | `btb`, `branch.py` | **new** |
+
+### 1.3 Data stored in each important structure
+
+All of these are defined in [init.py](code/init.py). A *tag* is the name of a ROB entry (`ROB0`, `ROB1`, …); it is how an instruction says "I am waiting for the result of that instruction".
+
+**ROB entry** (`ROB_entry`): one per in-flight instruction, kept in program order. This is what lets the machine execute out of order but commit in order.
+
+| Field | Meaning |
+|---|---|
+| `ROB_tag` | name of this entry (`ROB<n>`, n wraps around at the ROB size); used as the rename tag |
+| `PC` | index of the instruction in the program (used to print it and to compute branch targets) |
+| `dest_tag` | where the result goes: the register name (`F1`, `R2`); for `Sd` the load/store-queue slot; for a branch the offset |
+| `value` | the result once known (for a branch: taken / not taken) |
+| `issue`, `exe`, `mem`, `cdb`, `commit` | lists of cycle numbers of each stage (`exe` = [start, end]; this is the printed table) |
+| `pred` | **new**: the branch prediction made at issue (True = taken) |
+
+**RAT** (`rat_int[32]`, `rat_fp[32]`): one slot per register. It holds either the *value* (the register is up to date) or the *tag* `ROBn` of the youngest in-flight instruction that will write the register. A copy of the architectural registers is `reg_int`, `reg_fp`.
+
+**Reservation station entry** (`rs_entry`):
+
+| Field | Meaning |
+|---|---|
+| `busy` | slot in use |
+| `op` | operation (`Add`, `Add.d`, `Mult.d`, `Bne`, …) |
+| `tag_1st`, `value_1st`, `valid_1st` | first operand: the tag it waits for, its value, and whether the value is available |
+| `tag_2nd`, `value_2nd`, `valid_2nd` | the same for the second operand |
+| `dest_tag` | the ROB tag of this instruction (where the result is sent) |
+
+The instruction can go to a functional unit when `valid_1st` and `valid_2nd` are both 1.
+
+**Functional unit entry** (`fu_entry`): `op`, `value1`, `value2`, `dest_tag`, `cycle` (cycles already spent in EX; compared with the `Cycles in EX` configuration).
+
+**Load/store queue entry** (`ld_sd_entry`), in program order:
+
+| Field | Meaning |
+|---|---|
+| `ld_sd_tag` | slot name in the queue |
+| `op` | `Ld` or `Sd` |
+| `reg_tag`, `reg_value`, `valid` | the base register operand (`8(R1)` → `R1`) and whether it is ready |
+| `immediate` | the offset |
+| `address`, `ready` | effective address (base + offset) and whether it has been calculated |
+| `data` | for `Sd`: the value to store (or the tag it still waits for) |
+| `dest_tag` | the ROB tag of this instruction |
+
+A load may go to memory when its address is ready and every older store has a known address that is different (otherwise it waits, or takes the data from the nearest older matching store by forwarding).
+
+**Other small structures**
+
+| Structure | Fields |
+|---|---|
+| `ld_sd_exe` (address unit) | `busy`, `cycle`, `value1`, `value2`, `dest_tag` |
+| `ld_sd_mem` (memory port) | `busy`, `cycle`, `op`, `address`, `data`, `dest_tag` |
+| `cdb` | `valid`, `value`, `dest_tag` |
+| `results_buffer` | queue of `fu_result` = (`value`, `dest_tag`) waiting for the CDB |
+| `PC` | `PC` (next instruction), `resume` (first cycle fetch is allowed, **new**), `resolved` (branches that finished EX this cycle, **new**) |
+| `btb[8]` | **new**: each entry is `(branch PC, target PC, taken bit)` or empty; index = `PC mod 8` |
+
+Example: after `Add.d F1,F2,F3` is issued in cycle 1 as the first instruction, the structures contain:
+
+```
+ROB[0]  = {ROB_tag: ROB0, PC: 0, dest_tag: F1, value: -, issue: [1], exe: [], mem: [], cdb: [], commit: [], pred: False}
+RAT_fp[1] = "ROB0"                                    # F1 is now being produced by ROB0
+RS_fpadder[0] = {busy: 1, op: Add.d, tag_1st: -, value_1st: 30.1, valid_1st: 1,
+                 tag_2nd: -, value_2nd: 0.0, valid_2nd: 1, dest_tag: ROB0}
+```
 
 ---
 
