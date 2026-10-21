@@ -1,192 +1,461 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1210 890" width="1210" height="890" font-family="Helvetica, Arial, sans-serif" font-size="13">
-  <defs>
-    <marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#333"/></marker>
-    <marker id="r" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#c62828"/></marker>
-  </defs>
-  <rect width="1210" height="890" fill="#ffffff"/>
-  <text x="605" y="20" text-anchor="middle" font-size="17" font-weight="bold">Hardware modelled by the simulator (in-order multi-issue Tomasulo with ROB)</text>
-
-  <!-- program -->
-  <rect x="30" y="60" width="180" height="90" rx="6" fill="#eeeeee" stroke="#555"/>
-  <text x="120" y="90" text-anchor="middle" font-weight="bold">Program</text>
-  <text x="120" y="110" text-anchor="middle" font-size="12">instruction list</text>
-  <text x="120" y="128" text-anchor="middle" font-size="12">PC = next instruction</text>
-  <line x1="210" y1="105" x2="248" y2="105" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
-
-  <!-- issue -->
-  <rect x="250" y="35" width="920" height="145" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
-  <text x="265" y="58" font-weight="bold" font-size="15">ISSUE: fetch + decode + rename</text>
-  <text x="560" y="58" font-size="12">up to "Issue width" (1-4) instructions per cycle, in program order, stops at the first stall</text>
-  <rect x="265" y="75" width="300" height="90" rx="5" fill="#fff" stroke="#1565c0"/>
-  <text x="415" y="95" text-anchor="middle" font-weight="bold">RAT (register alias table)</text>
-  <text x="415" y="115" text-anchor="middle" font-size="12">rat_int[32], rat_fp[32]</text>
-  <text x="415" y="133" text-anchor="middle" font-size="12">register -> value (ready)</text>
-  <text x="415" y="150" text-anchor="middle" font-size="12">or ROB tag (still being computed)</text>
-  <rect x="580" y="75" width="330" height="90" rx="5" fill="#fff" stroke="#c62828" stroke-width="2.5"/>
-  <text x="745" y="95" text-anchor="middle" font-weight="bold" fill="#c62828">Branch predictor (NEW)</text>
-  <text x="745" y="115" text-anchor="middle" font-size="12">BTB: 8 entries, index = PC mod 8</text>
-  <text x="745" y="133" text-anchor="middle" font-size="12">entry = (branch PC, target PC, 1-bit taken)</text>
-  <text x="745" y="150" text-anchor="middle" font-size="12">miss = predict not taken; used at ISSUE</text>
-  <rect x="925" y="75" width="230" height="90" rx="5" fill="#fff" stroke="#c62828" stroke-width="2.5"/>
-  <text x="1040" y="95" text-anchor="middle" font-weight="bold" fill="#c62828">PC control (NEW)</text>
-  <text x="1040" y="115" text-anchor="middle" font-size="12">PC follows the prediction</text>
-  <text x="1040" y="133" text-anchor="middle" font-size="12">resume = n+2 after a</text>
-  <text x="1040" y="150" text-anchor="middle" font-size="12">misprediction found in cycle n</text>
-
-  <!-- arrows issue -> RS -->
-  <g stroke="#333" stroke-width="1.5" marker-end="url(#a)">
-    <line x1="170" y1="180" x2="170" y2="223"/>
-    <line x1="455" y1="180" x2="455" y2="223"/>
-    <line x1="725" y1="180" x2="725" y2="223"/>
-    <line x1="1020" y1="180" x2="1020" y2="223"/>
-  </g>
-
-  <!-- reservation stations -->
-  <g fill="#fff8e1" stroke="#f9a825" stroke-width="1.5">
-    <rect x="30" y="225" width="280" height="95" rx="6"/>
-    <rect x="330" y="225" width="250" height="95" rx="6"/>
-    <rect x="600" y="225" width="250" height="95" rx="6"/>
-    <rect x="870" y="225" width="300" height="95" rx="6"/>
-  </g>
-  <g text-anchor="middle">
-    <text x="170" y="246" font-weight="bold">RS: integer adder (+ Beq/Bne)</text>
-    <text x="455" y="246" font-weight="bold">RS: FP adder</text>
-    <text x="725" y="246" font-weight="bold">RS: FP multiplier</text>
-    <text x="1020" y="246" font-weight="bold">Load/Store queue (program order)</text>
-  </g>
-  <g text-anchor="middle" font-size="11.5">
-    <text x="170" y="266">busy | op</text>
-    <text x="170" y="283">tag1 | value1 | valid1</text>
-    <text x="170" y="300">tag2 | value2 | valid2 | dest_tag</text>
-    <text x="455" y="266">busy | op</text>
-    <text x="455" y="283">tag1 | value1 | valid1</text>
-    <text x="455" y="300">tag2 | value2 | valid2 | dest_tag</text>
-    <text x="725" y="266">busy | op</text>
-    <text x="725" y="283">tag1 | value1 | valid1</text>
-    <text x="725" y="300">tag2 | value2 | valid2 | dest_tag</text>
-    <text x="1020" y="266">op | reg_tag/reg_value/valid | immediate</text>
-    <text x="1020" y="283">address | ready | data | dest_tag</text>
-    <text x="1020" y="300">loads wait for older store addresses</text>
-  </g>
-
-  <!-- arrows RS -> FU -->
-  <g stroke="#333" stroke-width="1.5" marker-end="url(#a)">
-    <line x1="170" y1="320" x2="170" y2="358"/>
-    <line x1="455" y1="320" x2="455" y2="358"/>
-    <line x1="725" y1="320" x2="725" y2="358"/>
-    <line x1="1020" y1="320" x2="1020" y2="358"/>
-  </g>
-  <text x="178" y="345" font-size="11">operands ready</text>
-
-  <!-- functional units -->
-  <g fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5">
-    <rect x="30" y="360" width="280" height="60" rx="6"/>
-    <rect x="330" y="360" width="250" height="60" rx="6"/>
-    <rect x="600" y="360" width="250" height="60" rx="6"/>
-    <rect x="870" y="360" width="300" height="60" rx="6"/>
-  </g>
-  <g text-anchor="middle">
-    <text x="170" y="385" font-weight="bold">INT ADD x N</text>
-    <text x="170" y="404" font-size="12">not pipelined (Add, Addi, Sub, branch compare)</text>
-    <text x="455" y="385" font-weight="bold">FP ADD x N</text>
-    <text x="455" y="404" font-size="12">pipelined (Add.d, Sub.d)</text>
-    <text x="725" y="385" font-weight="bold">FP MULT x N</text>
-    <text x="725" y="404" font-size="12">pipelined (Mult.d)</text>
-    <text x="1020" y="385" font-weight="bold">Address adder</text>
-    <text x="1020" y="404" font-size="12">EX of Ld/Sd: base + offset</text>
-  </g>
-
-  <!-- branch resolution -->
-  <line x1="110" y1="420" x2="110" y2="447" stroke="#c62828" stroke-width="2" marker-end="url(#r)"/>
-  <text x="118" y="438" font-size="11" fill="#c62828">taken?</text>
-  <rect x="30" y="449" width="205" height="102" rx="6" fill="#ffebee" stroke="#c62828" stroke-width="2.5"/>
-  <text x="132" y="467" text-anchor="middle" font-weight="bold" fill="#c62828">Branch resolution (NEW)</text>
-  <g text-anchor="middle" font-size="11">
-    <text x="132" y="485">end of EX: compare with prediction</text>
-    <text x="132" y="501">train BTB; if wrong:</text>
-    <text x="132" y="517">squash younger instructions,</text>
-    <text x="132" y="533">rebuild RAT, refetch in cycle n+2</text>
-  </g>
-
-  <!-- memory -->
-  <line x1="1020" y1="420" x2="1020" y2="447" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
-  <rect x="870" y="449" width="300" height="70" rx="6" fill="#fff3e0" stroke="#e65100" stroke-width="1.5"/>
-  <text x="1020" y="470" text-anchor="middle" font-weight="bold">Data memory (256 B = 64 words)</text>
-  <text x="1020" y="488" text-anchor="middle" font-size="12">single port, not pipelined</text>
-  <text x="1020" y="506" text-anchor="middle" font-size="12">store-to-load forwarding from the queue</text>
-
-  <!-- CDB -->
-  <rect x="30" y="565" width="1140" height="34" rx="6" fill="#37474f"/>
-  <text x="600" y="587" text-anchor="middle" fill="#fff" font-weight="bold" font-size="14">CDB: ONE common data bus, one result (value, tag) per cycle  [results_buffer -> CDB]</text>
-  <g stroke="#333" stroke-width="1.5" marker-end="url(#a)">
-    <line x1="270" y1="420" x2="270" y2="563"/>
-    <line x1="455" y1="420" x2="455" y2="563"/>
-    <line x1="725" y1="420" x2="725" y2="563"/>
-    <line x1="1020" y1="519" x2="1020" y2="563"/>
-  </g>
-  <text x="278" y="500" font-size="11">results</text>
-  <text x="463" y="500" font-size="11">results</text>
-  <text x="733" y="500" font-size="11">results</text>
-  <text x="1028" y="545" font-size="11">load data</text>
-
-  <!-- broadcast -->
-  <g stroke="#333" stroke-width="1.5" marker-end="url(#a)">
-    <line x1="600" y1="599" x2="600" y2="641"/>
-  </g>
-  <text x="610" y="618" font-size="12">broadcast the tag: waiting RS operands and Sd data get the value, RAT is updated,</text>
-  <text x="610" y="634" font-size="12">the ROB entry is marked done</text>
-
-  <!-- ROB -->
-  <rect x="30" y="643" width="1140" height="150" rx="8" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="2"/>
-  <text x="45" y="663" font-weight="bold" font-size="14">ROB: reorder buffer (circular queue, program order; one entry per in-flight instruction)</text>
-  <g font-family="Courier New, monospace" font-size="12" font-weight="bold">
-    <text x="85" y="688">ROB_tag</text>
-    <text x="175" y="688">PC</text>
-    <text x="225" y="688">dest_tag</text>
-    <text x="320" y="688">value</text>
-    <text x="395" y="688">issue</text>
-    <text x="465" y="688">exe</text>
-    <text x="545" y="688">mem</text>
-    <text x="615" y="688">cdb</text>
-    <text x="685" y="688">commit</text>
-    <text x="765" y="688">pred</text>
-  </g>
-  <line x1="45" y1="694" x2="820" y2="694" stroke="#6a1b9a"/>
-  <g font-family="Courier New, monospace" font-size="12">
-    <text x="85" y="712">ROB0</text><text x="175" y="712">0</text><text x="225" y="712">F1</text><text x="320" y="712">30.1</text><text x="395" y="712">[1]</text><text x="465" y="712">[2,4]</text><text x="545" y="712">[]</text><text x="615" y="712">[5]</text><text x="685" y="712">[]</text><text x="765" y="712">False</text>
-    <text x="85" y="732">ROB1</text><text x="175" y="732">1</text><text x="225" y="732">F4</text><text x="320" y="732">-</text><text x="395" y="732">[1]</text><text x="465" y="732">[2,2]</text><text x="545" y="732">[3,6]</text><text x="615" y="732">[]</text><text x="685" y="732">[]</text><text x="765" y="732">False</text>
-    <text x="85" y="752">ROB3</text><text x="175" y="752">3</text><text x="225" y="752">-4</text><text x="320" y="752">-</text><text x="395" y="752">[2]</text><text x="465" y="752">[]</text><text x="545" y="752">[]</text><text x="615" y="752">[]</text><text x="685" y="752">[]</text><text x="765" y="752">False</text>
-  </g>
-  <text x="85" y="774" font-size="11" fill="#555">example rows: Add.d F1,F2,F3 / Ld F4,8(R1) / Bne ... -4 (dest_tag = branch offset; Sd: load/store slot)</text>
-  <text x="48" y="712" font-size="12" fill="#6a1b9a">head</text>
-  <text x="838" y="712" font-size="12" font-weight="bold">head = oldest instruction:</text>
-  <text x="838" y="730" font-size="12">commits when done (in order)</text>
-  <text x="838" y="752" font-size="12" font-weight="bold">tail: ISSUE allocates here</text>
-  <text x="838" y="770" font-size="12" fill="#c62828">pred (NEW): predicted taken?</text>
-  <text x="838" y="786" font-size="12">issue/exe/mem/cdb/commit = stage cycles</text>
-
-  <!-- ISSUE -> ROB allocation (right side) -->
-  <path d="M1170,105 L1192,105 L1192,718 L1172,718" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
-  <text transform="translate(1203,420) rotate(90)" text-anchor="middle" font-size="12">ISSUE allocates a ROB entry (in order)</text>
-
-  <!-- branch recovery to ROB -->
-  <path d="M132,551 L132,643" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#r)"/>
-  <text x="140" y="600" font-size="11" fill="#c62828" transform="translate(0,22)">squash</text>
-
-  <!-- commit -->
-  <line x1="280" y1="793" x2="280" y2="823" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
-  <rect x="30" y="825" width="500" height="44" rx="6" fill="#e0f2f1" stroke="#00695c" stroke-width="1.5"/>
-  <text x="280" y="845" text-anchor="middle" font-weight="bold">Architectural registers R0-R31, F0-F31</text>
-  <text x="280" y="861" text-anchor="middle" font-size="12">written at COMMIT, in order (R0 is always 0)</text>
-  <text x="290" y="812" font-size="12">commit: write register</text>
-
-  <path d="M900,793 L900,830" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#a)"/>
-  <text x="910" y="812" font-size="12">Sd at the ROB head writes memory</text>
-  <rect x="780" y="832" width="390" height="38" rx="6" fill="#fff3e0" stroke="#e65100"/>
-  <text x="975" y="856" text-anchor="middle" font-size="12">data memory (same memory as above)</text>
-
-  <!-- legend -->
-  <rect x="560" y="828" width="14" height="14" fill="#fff" stroke="#c62828" stroke-width="2.5"/>
-  <text x="580" y="840" font-size="12">red = added</text>
-  <text x="560" y="858" font-size="12">in this assignment</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1620 700" width="1620" height="700" font-family="Helvetica, Arial, sans-serif" font-size="12">
+<defs><marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#333"/></marker><marker id="r" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#c62828"/></marker></defs>
+<rect width="1620" height="700" fill="#fff"/>
+<text x="810.0" y="20" text-anchor="middle" font-size="17" font-weight="bold">Pipeline and hardware of the simulator (every box shows the data it stores, with example values)</text>
+<rect x="15" y="36" width="270" height="644" fill="#f3f9fe" stroke="#ccc"/>
+<polygon points="15,36 271,36 285,52 271,68 15,68 29,52" fill="#90caf9" stroke="#555"/>
+<text x="150.0" y="50" text-anchor="middle" font-weight="bold" font-size="14">1  ISSUE</text>
+<text x="150.0" y="63" text-anchor="middle" font-size="10.5">fetch, decode, rename</text>
+<rect x="305" y="36" width="440" height="644" fill="#f4fbf4" stroke="#ccc"/>
+<polygon points="305,36 731,36 745,52 731,68 305,68 319,52" fill="#a5d6a7" stroke="#555"/>
+<text x="525.0" y="50" text-anchor="middle" font-weight="bold" font-size="14">2  EX</text>
+<text x="525.0" y="63" text-anchor="middle" font-size="10.5">wait in RS, then execute</text>
+<rect x="765" y="36" width="220" height="644" fill="#fffaf2" stroke="#ccc"/>
+<polygon points="765,36 971,36 985,52 971,68 765,68 779,52" fill="#ffcc80" stroke="#555"/>
+<text x="875.0" y="50" text-anchor="middle" font-weight="bold" font-size="14">3  MEM</text>
+<text x="875.0" y="63" text-anchor="middle" font-size="10.5">Ld / Sd only</text>
+<rect x="1005" y="36" width="180" height="644" fill="#f6f8f9" stroke="#ccc"/>
+<polygon points="1005,36 1171,36 1185,52 1171,68 1005,68 1019,52" fill="#b0bec5" stroke="#555"/>
+<text x="1095.0" y="50" text-anchor="middle" font-weight="bold" font-size="14">4  WB</text>
+<text x="1095.0" y="63" text-anchor="middle" font-size="10.5">result on the CDB</text>
+<rect x="1205" y="36" width="400" height="644" fill="#fbf5fc" stroke="#ccc"/>
+<polygon points="1205,36 1591,36 1605,52 1591,68 1205,68 1219,52" fill="#ce93d8" stroke="#555"/>
+<text x="1405.0" y="50" text-anchor="middle" font-weight="bold" font-size="14">5  COMMIT</text>
+<text x="1405.0" y="63" text-anchor="middle" font-size="10.5">in order, from the ROB</text>
+<rect x="25" y="90" width="250" height="62" rx="6" fill="#fff" stroke="#1565c0" stroke-width="1.5"/>
+<text x="150" y="110" text-anchor="middle" font-weight="bold">ISSUE logic</text>
+<text x="150" y="126" text-anchor="middle" font-size="11">up to "Issue width" (1-4) instr / cycle</text>
+<text x="150" y="141" text-anchor="middle" font-size="11">in program order, stops at 1st stall</text>
+<text x="25" y="181" font-size="11" font-weight="bold" fill="#c62828">PC control + program</text>
+<rect x="25" y="186" width="210" height="32" fill="#fff" stroke="#c62828" stroke-width="2.2"/>
+<rect x="25" y="186" width="210" height="16" fill="#bbdefb" stroke="#c62828" stroke-width="2.2"/>
+<text x="55.0" y="198" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">PC</text>
+<line x1="85" y1="186" x2="85" y2="218" stroke="#bbb"/>
+<text x="120.0" y="198" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">resume</text>
+<line x1="155" y1="186" x2="155" y2="218" stroke="#bbb"/>
+<text x="195.0" y="198" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">resolved</text>
+<line x1="25" y1="202" x2="235" y2="202" stroke="#ddd"/>
+<text x="55.0" y="214" text-anchor="middle" font-size="10" font-family="Courier New, monospace">4</text>
+<text x="120.0" y="214" text-anchor="middle" font-size="10" font-family="Courier New, monospace">7</text>
+<text x="195.0" y="214" text-anchor="middle" font-size="10" font-family="Courier New, monospace">[]</text>
+<text x="25" y="230" font-size="10" fill="#555">PC follows the prediction; refetch at n+2</text>
+<text x="25" y="261" font-size="11" font-weight="bold" fill="#c62828">Branch predictor: BTB (8 entries)</text>
+<rect x="25" y="266" width="210" height="32" fill="#fff" stroke="#c62828" stroke-width="2.2"/>
+<rect x="25" y="266" width="210" height="16" fill="#bbdefb" stroke="#c62828" stroke-width="2.2"/>
+<text x="42.0" y="278" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">idx</text>
+<line x1="59" y1="266" x2="59" y2="298" stroke="#bbb"/>
+<text x="94.0" y="278" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">branch PC</text>
+<line x1="129" y1="266" x2="129" y2="298" stroke="#bbb"/>
+<text x="157.0" y="278" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">target</text>
+<line x1="185" y1="266" x2="185" y2="298" stroke="#bbb"/>
+<text x="210.0" y="278" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">taken</text>
+<line x1="25" y1="282" x2="235" y2="282" stroke="#ddd"/>
+<text x="42.0" y="294" text-anchor="middle" font-size="10" font-family="Courier New, monospace">3</text>
+<text x="94.0" y="294" text-anchor="middle" font-size="10" font-family="Courier New, monospace">3</text>
+<text x="157.0" y="294" text-anchor="middle" font-size="10" font-family="Courier New, monospace">0</text>
+<text x="210.0" y="294" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="25" y="310" font-size="10" fill="#555">idx = PC mod 8, 1-bit taken; miss = not taken</text>
+<text x="25" y="351" font-size="11" font-weight="bold" fill="#333">RAT (rat_int[32], rat_fp[32])</text>
+<rect x="25" y="356" width="180" height="64" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="25" y="356" width="180" height="16" fill="#bbdefb" stroke="#333" stroke-width="1.2"/>
+<text x="50.0" y="368" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">reg</text>
+<line x1="75" y1="356" x2="75" y2="420" stroke="#bbb"/>
+<text x="140.0" y="368" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value or ROB tag</text>
+<line x1="25" y1="372" x2="205" y2="372" stroke="#ddd"/>
+<text x="50.0" y="384" text-anchor="middle" font-size="10" font-family="Courier New, monospace">F1</text>
+<text x="140.0" y="384" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB0</text>
+<line x1="25" y1="388" x2="205" y2="388" stroke="#ddd"/>
+<text x="50.0" y="400" text-anchor="middle" font-size="10" font-family="Courier New, monospace">F4</text>
+<text x="140.0" y="400" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB1</text>
+<line x1="25" y1="404" x2="205" y2="404" stroke="#ddd"/>
+<text x="50.0" y="416" text-anchor="middle" font-size="10" font-family="Courier New, monospace">R1</text>
+<text x="140.0" y="416" text-anchor="middle" font-size="10" font-family="Courier New, monospace">10</text>
+<text x="25" y="432" font-size="10" fill="#555">a tag means "still being computed"</text>
+<text x="315" y="101" font-size="11" font-weight="bold" fill="#333">RS: integer adder (+ Beq/Bne)</text>
+<rect x="315" y="106" width="372" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="315" y="106" width="372" height="16" fill="#c8e6c9" stroke="#333" stroke-width="1.2"/>
+<text x="332.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">busy</text>
+<line x1="349" y1="106" x2="349" y2="138" stroke="#bbb"/>
+<text x="375.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">op</text>
+<line x1="401" y1="106" x2="401" y2="138" stroke="#bbb"/>
+<text x="423.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">tag1</text>
+<line x1="445" y1="106" x2="445" y2="138" stroke="#bbb"/>
+<text x="467.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">val1</text>
+<line x1="489" y1="106" x2="489" y2="138" stroke="#bbb"/>
+<text x="501.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">v1</text>
+<line x1="513" y1="106" x2="513" y2="138" stroke="#bbb"/>
+<text x="535.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">tag2</text>
+<line x1="557" y1="106" x2="557" y2="138" stroke="#bbb"/>
+<text x="579.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">val2</text>
+<line x1="601" y1="106" x2="601" y2="138" stroke="#bbb"/>
+<text x="613.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">v2</text>
+<line x1="625" y1="106" x2="625" y2="138" stroke="#bbb"/>
+<text x="656.0" y="118" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="315" y1="122" x2="687" y2="122" stroke="#ddd"/>
+<text x="332.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="375.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">Bne</text>
+<text x="423.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">-</text>
+<text x="467.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">10</text>
+<text x="501.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="535.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">-</text>
+<text x="579.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">0</text>
+<text x="613.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="656.0" y="134" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB3</text>
+<text x="315" y="157" font-size="11" font-weight="bold" fill="#333">INT ADD x N  (not pipelined)</text>
+<rect x="315" y="162" width="286" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="315" y="162" width="286" height="16" fill="#c8e6c9" stroke="#333" stroke-width="1.2"/>
+<text x="337.0" y="174" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">cycle</text>
+<line x1="359" y1="162" x2="359" y2="194" stroke="#bbb"/>
+<text x="387.0" y="174" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">op</text>
+<line x1="415" y1="162" x2="415" y2="194" stroke="#bbb"/>
+<text x="445.0" y="174" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value1</text>
+<line x1="475" y1="162" x2="475" y2="194" stroke="#bbb"/>
+<text x="505.0" y="174" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value2</text>
+<line x1="535" y1="162" x2="535" y2="194" stroke="#bbb"/>
+<text x="568.0" y="174" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="315" y1="178" x2="601" y2="178" stroke="#ddd"/>
+<text x="337.0" y="190" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="387.0" y="190" text-anchor="middle" font-size="10" font-family="Courier New, monospace">Bne</text>
+<text x="445.0" y="190" text-anchor="middle" font-size="10" font-family="Courier New, monospace">10</text>
+<text x="505.0" y="190" text-anchor="middle" font-size="10" font-family="Courier New, monospace">0</text>
+<text x="568.0" y="190" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB3</text>
+<line x1="520" y1="138" x2="520" y2="149" stroke="#333" stroke-width="1.2" marker-end="url(#a)"/>
+<text x="315" y="221" font-size="11" font-weight="bold" fill="#333">RS: FP adder</text>
+<rect x="315" y="226" width="372" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="315" y="226" width="372" height="16" fill="#c8e6c9" stroke="#333" stroke-width="1.2"/>
+<text x="332.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">busy</text>
+<line x1="349" y1="226" x2="349" y2="258" stroke="#bbb"/>
+<text x="375.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">op</text>
+<line x1="401" y1="226" x2="401" y2="258" stroke="#bbb"/>
+<text x="423.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">tag1</text>
+<line x1="445" y1="226" x2="445" y2="258" stroke="#bbb"/>
+<text x="467.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">val1</text>
+<line x1="489" y1="226" x2="489" y2="258" stroke="#bbb"/>
+<text x="501.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">v1</text>
+<line x1="513" y1="226" x2="513" y2="258" stroke="#bbb"/>
+<text x="535.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">tag2</text>
+<line x1="557" y1="226" x2="557" y2="258" stroke="#bbb"/>
+<text x="579.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">val2</text>
+<line x1="601" y1="226" x2="601" y2="258" stroke="#bbb"/>
+<text x="613.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">v2</text>
+<line x1="625" y1="226" x2="625" y2="258" stroke="#bbb"/>
+<text x="656.0" y="238" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="315" y1="242" x2="687" y2="242" stroke="#ddd"/>
+<text x="332.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="375.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">Add.d</text>
+<text x="423.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">-</text>
+<text x="467.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">30.1</text>
+<text x="501.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="535.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">-</text>
+<text x="579.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">0.0</text>
+<text x="613.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="656.0" y="254" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB0</text>
+<text x="315" y="277" font-size="11" font-weight="bold" fill="#333">FP ADD x N  (pipelined)</text>
+<rect x="315" y="282" width="286" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="315" y="282" width="286" height="16" fill="#c8e6c9" stroke="#333" stroke-width="1.2"/>
+<text x="337.0" y="294" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">cycle</text>
+<line x1="359" y1="282" x2="359" y2="314" stroke="#bbb"/>
+<text x="387.0" y="294" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">op</text>
+<line x1="415" y1="282" x2="415" y2="314" stroke="#bbb"/>
+<text x="445.0" y="294" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value1</text>
+<line x1="475" y1="282" x2="475" y2="314" stroke="#bbb"/>
+<text x="505.0" y="294" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value2</text>
+<line x1="535" y1="282" x2="535" y2="314" stroke="#bbb"/>
+<text x="568.0" y="294" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="315" y1="298" x2="601" y2="298" stroke="#ddd"/>
+<text x="337.0" y="310" text-anchor="middle" font-size="10" font-family="Courier New, monospace">2</text>
+<text x="387.0" y="310" text-anchor="middle" font-size="10" font-family="Courier New, monospace">Add.d</text>
+<text x="445.0" y="310" text-anchor="middle" font-size="10" font-family="Courier New, monospace">30.1</text>
+<text x="505.0" y="310" text-anchor="middle" font-size="10" font-family="Courier New, monospace">0.0</text>
+<text x="568.0" y="310" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB0</text>
+<line x1="520" y1="258" x2="520" y2="269" stroke="#333" stroke-width="1.2" marker-end="url(#a)"/>
+<text x="315" y="341" font-size="11" font-weight="bold" fill="#333">RS: FP multiplier</text>
+<rect x="315" y="346" width="372" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="315" y="346" width="372" height="16" fill="#c8e6c9" stroke="#333" stroke-width="1.2"/>
+<text x="332.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">busy</text>
+<line x1="349" y1="346" x2="349" y2="378" stroke="#bbb"/>
+<text x="375.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">op</text>
+<line x1="401" y1="346" x2="401" y2="378" stroke="#bbb"/>
+<text x="423.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">tag1</text>
+<line x1="445" y1="346" x2="445" y2="378" stroke="#bbb"/>
+<text x="467.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">val1</text>
+<line x1="489" y1="346" x2="489" y2="378" stroke="#bbb"/>
+<text x="501.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">v1</text>
+<line x1="513" y1="346" x2="513" y2="378" stroke="#bbb"/>
+<text x="535.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">tag2</text>
+<line x1="557" y1="346" x2="557" y2="378" stroke="#bbb"/>
+<text x="579.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">val2</text>
+<line x1="601" y1="346" x2="601" y2="378" stroke="#bbb"/>
+<text x="613.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">v2</text>
+<line x1="625" y1="346" x2="625" y2="378" stroke="#bbb"/>
+<text x="656.0" y="358" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="315" y1="362" x2="687" y2="362" stroke="#ddd"/>
+<text x="332.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace">0</text>
+<text x="375.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="423.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="467.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="501.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="535.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="579.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="613.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="656.0" y="374" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="315" y="397" font-size="11" font-weight="bold" fill="#333">FP MULT x N  (pipelined)</text>
+<rect x="315" y="402" width="286" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="315" y="402" width="286" height="16" fill="#c8e6c9" stroke="#333" stroke-width="1.2"/>
+<text x="337.0" y="414" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">cycle</text>
+<line x1="359" y1="402" x2="359" y2="434" stroke="#bbb"/>
+<text x="387.0" y="414" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">op</text>
+<line x1="415" y1="402" x2="415" y2="434" stroke="#bbb"/>
+<text x="445.0" y="414" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value1</text>
+<line x1="475" y1="402" x2="475" y2="434" stroke="#bbb"/>
+<text x="505.0" y="414" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value2</text>
+<line x1="535" y1="402" x2="535" y2="434" stroke="#bbb"/>
+<text x="568.0" y="414" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="315" y1="418" x2="601" y2="418" stroke="#ddd"/>
+<text x="337.0" y="430" text-anchor="middle" font-size="10" font-family="Courier New, monospace">-</text>
+<text x="387.0" y="430" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="445.0" y="430" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="505.0" y="430" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<text x="568.0" y="430" text-anchor="middle" font-size="10" font-family="Courier New, monospace"></text>
+<line x1="520" y1="378" x2="520" y2="389" stroke="#333" stroke-width="1.2" marker-end="url(#a)"/>
+<text x="315" y="461" font-size="11" font-weight="bold" fill="#333">Load/Store queue (program order)</text>
+<rect x="315" y="466" width="420" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="315" y="466" width="420" height="16" fill="#c8e6c9" stroke="#333" stroke-width="1.2"/>
+<text x="332.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">tag</text>
+<line x1="349" y1="466" x2="349" y2="498" stroke="#bbb"/>
+<text x="364.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">op</text>
+<line x1="379" y1="466" x2="379" y2="498" stroke="#bbb"/>
+<text x="404.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">reg_tag</text>
+<line x1="429" y1="466" x2="429" y2="498" stroke="#bbb"/>
+<text x="454.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">reg_val</text>
+<line x1="479" y1="466" x2="479" y2="498" stroke="#bbb"/>
+<text x="498.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">valid</text>
+<line x1="517" y1="466" x2="517" y2="498" stroke="#bbb"/>
+<text x="533.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">imm</text>
+<line x1="549" y1="466" x2="549" y2="498" stroke="#bbb"/>
+<text x="575.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">address</text>
+<line x1="601" y1="466" x2="601" y2="498" stroke="#bbb"/>
+<text x="621.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">ready</text>
+<line x1="641" y1="466" x2="641" y2="498" stroke="#bbb"/>
+<text x="662.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">data</text>
+<line x1="683" y1="466" x2="683" y2="498" stroke="#bbb"/>
+<text x="709.0" y="478" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="315" y1="482" x2="735" y2="482" stroke="#ddd"/>
+<text x="332.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">LS1</text>
+<text x="364.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">Ld</text>
+<text x="404.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">R1</text>
+<text x="454.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">10</text>
+<text x="498.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="533.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">8</text>
+<text x="575.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">18</text>
+<text x="621.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="662.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">-</text>
+<text x="709.0" y="494" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB1</text>
+<text x="315" y="517" font-size="11" font-weight="bold" fill="#333">Address adder (ld_sd_exe): base + imm</text>
+<rect x="315" y="522" width="270" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="315" y="522" width="270" height="16" fill="#c8e6c9" stroke="#333" stroke-width="1.2"/>
+<text x="335.0" y="534" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">busy</text>
+<line x1="355" y1="522" x2="355" y2="554" stroke="#bbb"/>
+<text x="377.0" y="534" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">cycle</text>
+<line x1="399" y1="522" x2="399" y2="554" stroke="#bbb"/>
+<text x="429.0" y="534" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value1</text>
+<line x1="459" y1="522" x2="459" y2="554" stroke="#bbb"/>
+<text x="489.0" y="534" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value2</text>
+<line x1="519" y1="522" x2="519" y2="554" stroke="#bbb"/>
+<text x="552.0" y="534" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="315" y1="538" x2="585" y2="538" stroke="#ddd"/>
+<text x="335.0" y="550" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="377.0" y="550" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="429.0" y="550" text-anchor="middle" font-size="10" font-family="Courier New, monospace">10</text>
+<text x="489.0" y="550" text-anchor="middle" font-size="10" font-family="Courier New, monospace">8</text>
+<text x="552.0" y="550" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB1</text>
+<line x1="520" y1="498" x2="520" y2="509" stroke="#333" stroke-width="1.2" marker-end="url(#a)"/>
+<text x="315" y="590" font-size="10" fill="#555">loads wait for older store addresses;</text>
+<text x="315" y="603" font-size="10" fill="#555">a matching older Sd forwards its data</text>
+<text x="291" y="82" font-size="9.5" fill="#555" text-anchor="middle"></text>
+<line x1="275" y1="121" x2="296" y2="121" stroke="#333" stroke-width="1.5"/>
+<line x1="296" y1="121" x2="296" y2="484" stroke="#333" stroke-width="1.5"/>
+<line x1="296" y1="122" x2="313" y2="122" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="296" y1="242" x2="313" y2="242" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="296" y1="362" x2="313" y2="362" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="296" y1="482" x2="313" y2="482" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="775" y="90" width="200" height="82" rx="6" fill="#ffebee" stroke="#c62828" stroke-width="2.2"/>
+<text x="875" y="108" text-anchor="middle" font-weight="bold" fill="#c62828" font-size="11.5">Branch resolution (NEW)</text>
+<text x="875" y="124" text-anchor="middle" font-size="10">end of EX: outcome vs prediction</text>
+<text x="875" y="137" text-anchor="middle" font-size="10">train BTB; if wrong:</text>
+<text x="875" y="150" text-anchor="middle" font-size="10">squash younger entries,</text>
+<text x="875" y="163" text-anchor="middle" font-size="10">rebuild RAT, refetch in cycle n+2</text>
+<line x1="597" y1="176" x2="775" y2="176" stroke="#c62828" stroke-width="2" marker-end="url(#r)"/>
+<text x="610" y="187" font-size="10" fill="#c62828"></text>
+<text x="775" y="461" font-size="11" font-weight="bold" fill="#333">ld_sd_mem (memory port)</text>
+<rect x="775" y="466" width="200" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="775" y="466" width="200" height="16" fill="#ffe0b2" stroke="#333" stroke-width="1.2"/>
+<text x="789.0" y="478" text-anchor="middle" font-size="8" font-weight="bold" font-family="Courier New, monospace">busy</text>
+<line x1="803" y1="466" x2="803" y2="498" stroke="#bbb"/>
+<text x="820.0" y="478" text-anchor="middle" font-size="8" font-weight="bold" font-family="Courier New, monospace">cycle</text>
+<line x1="837" y1="466" x2="837" y2="498" stroke="#bbb"/>
+<text x="849.0" y="478" text-anchor="middle" font-size="8" font-weight="bold" font-family="Courier New, monospace">op</text>
+<line x1="861" y1="466" x2="861" y2="498" stroke="#bbb"/>
+<text x="878.0" y="478" text-anchor="middle" font-size="8" font-weight="bold" font-family="Courier New, monospace">addr</text>
+<line x1="895" y1="466" x2="895" y2="498" stroke="#bbb"/>
+<text x="910.0" y="478" text-anchor="middle" font-size="8" font-weight="bold" font-family="Courier New, monospace">data</text>
+<line x1="925" y1="466" x2="925" y2="498" stroke="#bbb"/>
+<text x="950.0" y="478" text-anchor="middle" font-size="8" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="775" y1="482" x2="975" y2="482" stroke="#ddd"/>
+<text x="789.0" y="494" text-anchor="middle" font-size="8" font-family="Courier New, monospace">1</text>
+<text x="820.0" y="494" text-anchor="middle" font-size="8" font-family="Courier New, monospace">2</text>
+<text x="849.0" y="494" text-anchor="middle" font-size="8" font-family="Courier New, monospace">Ld</text>
+<text x="878.0" y="494" text-anchor="middle" font-size="8" font-family="Courier New, monospace">18</text>
+<text x="910.0" y="494" text-anchor="middle" font-size="8" font-family="Courier New, monospace">-</text>
+<text x="950.0" y="494" text-anchor="middle" font-size="8" font-family="Courier New, monospace">ROB1</text>
+<line x1="735" y1="484" x2="775" y2="484" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="775" y="541" font-size="11" font-weight="bold" fill="#333">Data memory: 256 B, single port</text>
+<rect x="775" y="546" width="200" height="64" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="775" y="546" width="200" height="16" fill="#ffe0b2" stroke="#333" stroke-width="1.2"/>
+<text x="810.0" y="558" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">addr</text>
+<line x1="845" y1="546" x2="845" y2="610" stroke="#bbb"/>
+<text x="910.0" y="558" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value</text>
+<line x1="775" y1="562" x2="975" y2="562" stroke="#ddd"/>
+<text x="810.0" y="574" text-anchor="middle" font-size="10" font-family="Courier New, monospace">0</text>
+<text x="910.0" y="574" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1.0</text>
+<line x1="775" y1="578" x2="975" y2="578" stroke="#ddd"/>
+<text x="810.0" y="590" text-anchor="middle" font-size="10" font-family="Courier New, monospace">4</text>
+<text x="910.0" y="590" text-anchor="middle" font-size="10" font-family="Courier New, monospace">2.0</text>
+<line x1="775" y1="594" x2="975" y2="594" stroke="#ddd"/>
+<text x="810.0" y="606" text-anchor="middle" font-size="10" font-family="Courier New, monospace">...</text>
+<text x="910.0" y="606" text-anchor="middle" font-size="10" font-family="Courier New, monospace">...</text>
+<line x1="875" y1="498" x2="875" y2="533" stroke="#333" stroke-width="1.2" marker-end="url(#a)"/>
+<line x1="597" y1="186" x2="995" y2="186" stroke="#333" stroke-width="1.5"/>
+<line x1="597" y1="306" x2="995" y2="306" stroke="#333" stroke-width="1.5"/>
+<line x1="597" y1="426" x2="995" y2="426" stroke="#333" stroke-width="1.5"/>
+<line x1="995" y1="186" x2="995" y2="484" stroke="#333" stroke-width="1.5"/>
+<line x1="975" y1="484" x2="995" y2="484" stroke="#333" stroke-width="1.5"/>
+<text x="1015" y="296" font-size="11" font-weight="bold" fill="#333">results_buffer (queue)</text>
+<rect x="1015" y="301" width="170" height="48" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="1015" y="301" width="170" height="16" fill="#cfd8dc" stroke="#333" stroke-width="1.2"/>
+<text x="1055.0" y="313" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value</text>
+<line x1="1095" y1="301" x2="1095" y2="349" stroke="#bbb"/>
+<text x="1140.0" y="313" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="1015" y1="317" x2="1185" y2="317" stroke="#ddd"/>
+<text x="1055.0" y="329" text-anchor="middle" font-size="10" font-family="Courier New, monospace">5.0</text>
+<text x="1140.0" y="329" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB0</text>
+<line x1="1015" y1="333" x2="1185" y2="333" stroke="#ddd"/>
+<text x="1055.0" y="345" text-anchor="middle" font-size="10" font-family="Courier New, monospace">30.1</text>
+<text x="1140.0" y="345" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB1</text>
+<line x1="995" y1="330" x2="1013" y2="330" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="1015" y="431" font-size="11" font-weight="bold" fill="#333">CDB: ONE bus, 1 result / cycle</text>
+<rect x="1015" y="436" width="170" height="32" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="1015" y="436" width="170" height="16" fill="#cfd8dc" stroke="#333" stroke-width="1.2"/>
+<text x="1038.0" y="448" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">valid</text>
+<line x1="1061" y1="436" x2="1061" y2="468" stroke="#bbb"/>
+<text x="1091.0" y="448" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value</text>
+<line x1="1121" y1="436" x2="1121" y2="468" stroke="#bbb"/>
+<text x="1153.0" y="448" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="1015" y1="452" x2="1185" y2="452" stroke="#ddd"/>
+<text x="1038.0" y="464" text-anchor="middle" font-size="10" font-family="Courier New, monospace">1</text>
+<text x="1091.0" y="464" text-anchor="middle" font-size="10" font-family="Courier New, monospace">5.0</text>
+<text x="1153.0" y="464" text-anchor="middle" font-size="10" font-family="Courier New, monospace">ROB0</text>
+<line x1="1100" y1="349" x2="1100" y2="417" stroke="#333" stroke-width="1.2" marker-end="url(#a)"/>
+<text x="1035" y="490" font-size="10" fill="#555">broadcast (tag, value) to:</text>
+<text x="1035" y="503" font-size="10" fill="#555">RS, Sd data, RAT, ROB</text>
+<text x="1215" y="101" font-size="11" font-weight="bold" fill="#333">ROB: reorder buffer (circular queue, program order)</text>
+<rect x="1215" y="106" width="380" height="80" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="1215" y="106" width="380" height="16" fill="#e1bee7" stroke="#333" stroke-width="1.2"/>
+<text x="1239.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">ROB_tag</text>
+<line x1="1263" y1="106" x2="1263" y2="186" stroke="#bbb"/>
+<text x="1275.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">PC</text>
+<line x1="1287" y1="106" x2="1287" y2="186" stroke="#bbb"/>
+<text x="1311.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">dest_tag</text>
+<line x1="1335" y1="106" x2="1335" y2="186" stroke="#bbb"/>
+<text x="1354.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">value</text>
+<line x1="1373" y1="106" x2="1373" y2="186" stroke="#bbb"/>
+<text x="1391.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">issue</text>
+<line x1="1409" y1="106" x2="1409" y2="186" stroke="#bbb"/>
+<text x="1430.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">exe</text>
+<line x1="1451" y1="106" x2="1451" y2="186" stroke="#bbb"/>
+<text x="1472.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">mem</text>
+<line x1="1493" y1="106" x2="1493" y2="186" stroke="#bbb"/>
+<text x="1508.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">cdb</text>
+<line x1="1523" y1="106" x2="1523" y2="186" stroke="#bbb"/>
+<text x="1543.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">commit</text>
+<line x1="1563" y1="106" x2="1563" y2="186" stroke="#bbb"/>
+<text x="1579.0" y="118" text-anchor="middle" font-size="9" font-weight="bold" font-family="Courier New, monospace">pred</text>
+<line x1="1215" y1="122" x2="1595" y2="122" stroke="#ddd"/>
+<text x="1239.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">ROB0</text>
+<text x="1275.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">0</text>
+<text x="1311.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">F1</text>
+<text x="1354.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">-</text>
+<text x="1391.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[1]</text>
+<text x="1430.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[2,4]</text>
+<text x="1472.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1508.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[5]</text>
+<text x="1543.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1579.0" y="134" text-anchor="middle" font-size="9" font-family="Courier New, monospace">F</text>
+<line x1="1215" y1="138" x2="1595" y2="138" stroke="#ddd"/>
+<text x="1239.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">ROB1</text>
+<text x="1275.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">1</text>
+<text x="1311.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">F4</text>
+<text x="1354.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">-</text>
+<text x="1391.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[1]</text>
+<text x="1430.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[2,2]</text>
+<text x="1472.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[3,6]</text>
+<text x="1508.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1543.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1579.0" y="150" text-anchor="middle" font-size="9" font-family="Courier New, monospace">F</text>
+<line x1="1215" y1="154" x2="1595" y2="154" stroke="#ddd"/>
+<text x="1239.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">ROB2</text>
+<text x="1275.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">2</text>
+<text x="1311.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">R2</text>
+<text x="1354.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">10</text>
+<text x="1391.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[2]</text>
+<text x="1430.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[3,3]</text>
+<text x="1472.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1508.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[4]</text>
+<text x="1543.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1579.0" y="166" text-anchor="middle" font-size="9" font-family="Courier New, monospace">F</text>
+<line x1="1215" y1="170" x2="1595" y2="170" stroke="#ddd"/>
+<text x="1239.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">ROB3</text>
+<text x="1275.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">3</text>
+<text x="1311.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">-4</text>
+<text x="1354.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">-</text>
+<text x="1391.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[2]</text>
+<text x="1430.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1472.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1508.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1543.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">[]</text>
+<text x="1579.0" y="182" text-anchor="middle" font-size="9" font-family="Courier New, monospace">F</text>
+<text x="1215" y="218" font-size="10" font-weight="bold">^ head = oldest: commits when done, in order</text>
+<text x="1215" y="231" font-size="10" font-weight="bold">  tail: ISSUE allocates a new entry here</text>
+<text x="1215" y="246" font-size="10" fill="#c62828">pred (NEW) = predicted taken?   dest_tag: register name,</text>
+<text x="1215" y="258" font-size="10" fill="#555">Sd: load/store slot, branch: offset. issue..commit = cycles</text>
+<text x="1215" y="311" font-size="11" font-weight="bold" fill="#333">Architectural registers (reg_int, reg_fp)</text>
+<rect x="1215" y="316" width="160" height="80" fill="#fff" stroke="#333" stroke-width="1.2"/>
+<rect x="1215" y="316" width="160" height="16" fill="#e1bee7" stroke="#333" stroke-width="1.2"/>
+<text x="1245.0" y="328" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">reg</text>
+<line x1="1275" y1="316" x2="1275" y2="396" stroke="#bbb"/>
+<text x="1325.0" y="328" text-anchor="middle" font-size="10" font-weight="bold" font-family="Courier New, monospace">value</text>
+<line x1="1215" y1="332" x2="1375" y2="332" stroke="#ddd"/>
+<text x="1245.0" y="344" text-anchor="middle" font-size="10" font-family="Courier New, monospace">R0</text>
+<text x="1325.0" y="344" text-anchor="middle" font-size="10" font-family="Courier New, monospace">0 (fixed)</text>
+<line x1="1215" y1="348" x2="1375" y2="348" stroke="#ddd"/>
+<text x="1245.0" y="360" text-anchor="middle" font-size="10" font-family="Courier New, monospace">R1</text>
+<text x="1325.0" y="360" text-anchor="middle" font-size="10" font-family="Courier New, monospace">10</text>
+<line x1="1215" y1="364" x2="1375" y2="364" stroke="#ddd"/>
+<text x="1245.0" y="376" text-anchor="middle" font-size="10" font-family="Courier New, monospace">F2</text>
+<text x="1325.0" y="376" text-anchor="middle" font-size="10" font-family="Courier New, monospace">30.1</text>
+<line x1="1215" y1="380" x2="1375" y2="380" stroke="#ddd"/>
+<text x="1245.0" y="392" text-anchor="middle" font-size="10" font-family="Courier New, monospace">...</text>
+<text x="1325.0" y="392" text-anchor="middle" font-size="10" font-family="Courier New, monospace">...</text>
+<line x1="1300" y1="270" x2="1300" y2="297" stroke="#333" stroke-width="1.2" marker-end="url(#a)"/>
+<text x="1310" y="285" font-size="10">commit: write register</text>
+<text x="1215" y="430" font-size="10" fill="#555">A store writes data memory when it is the ROB head.</text>
+<path d="M1175,452 L1195,452 L1195,150 L1213,150" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M1025,470 L1025,640 L525,640 L525,600" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#a)"/>
+<text x="810" y="632" text-anchor="middle" font-size="10">broadcast wakes up reservation stations / Sd data waiting for the tag</text>
+<path d="M150,90 L150,80 L1585,80 L1585,105" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="800" y="77" text-anchor="middle" font-size="10">ISSUE allocates a ROB entry for every issued instruction (in order)</text>
+<path d="M875,90 L875,84 L40,84 L40,90" fill="none" stroke="#c62828" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#r)"/>
+<text x="450" y="95" text-anchor="middle" font-size="10" fill="#c62828"></text>
+<rect x="25" y="660" width="14" height="14" fill="#fff" stroke="#c62828" stroke-width="2.2"/>
+<text x="45" y="672" font-size="11">red = added in this assignment (BTB, PC control, branch resolution, ROB.pred); dashed red = misprediction recovery (squash + refetch)</text>
 </svg>

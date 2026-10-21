@@ -24,75 +24,93 @@ How to read it:
 * Results go through `results_buffer` onto the **CDB** (one per cycle), which wakes up everything waiting for that tag.
 * **COMMIT** retires the oldest instruction in the ROB and writes the architectural register.
 
-### 1.2 Mapping to the code
+### 1.2 What each piece of hardware does, and where it is in the code
 
-| Hardware | Where in code | Notes |
+| Hardware | Function | Code |
 |---|---|---|
-| Reservation stations (int / FP add / FP mult) | `rs_*` lists, `rs_entry` in `init.py` | size set by `# of rs` in the input |
-| Functional units | `fu_*` lists, `exe.py` | `# of FUs` units each; integer adder **unpipelined**, FP adder and multiplier **pipelined** |
-| Load/store queue + address unit + memory | `ld_sd_queue`, `ld_sd_exe`, `ld_sd_mem`, `mem.py` | loads wait for older store addresses, store-to-load forwarding |
-| ROB | `ROB` deque, `ROB_entry` | 128 entries by default |
-| RAT | `rat_int`, `rat_fp` | |
-| CDB | `cdb`, `results_buffer`, `wb.py` | one broadcast per cycle |
-| Branch predictor / BTB | `btb`, `branch.py` | **new** |
+| **ISSUE logic** | Takes up to *Issue width* instructions per cycle in program order. Decodes each one, renames its registers through the RAT, allocates a ROB entry and sends it to a reservation station or the load/store queue. Stops at the first instruction that cannot be placed (ROB or RS full). | `issue()`, `issue_one()` in [issue.py](code/issue.py) |
+| **PC control** (new) | Holds the next instruction to fetch. Follows the branch prediction, and after a misprediction waits until cycle n+2 before fetching again. | `PC` in [init.py](code/init.py); used in [main.py](code/main.py), [branch.py](code/branch.py) |
+| **Branch predictor / BTB** (new) | Predicts at ISSUE whether a branch is taken (1-bit, 8 entries, not-taken on a miss) and is trained when the branch resolves. | `build_btb`, `predict`, `update_btb` in [branch.py](code/branch.py) |
+| **RAT** | Tells each new instruction where to get a register: the value, or the tag of the ROB entry that is still computing it. This removes false (WAR/WAW) dependences. | `rat_int`, `rat_fp`, `update_rat()` in [issue.py](code/issue.py) |
+| **Reservation stations** (int adder, FP adder, FP multiplier) | Hold an instruction until both source operands are available (captured from the CDB), so execution is out of order. One group of RS per functional-unit type. | `rs_entry`, `build_rs` in [init.py](code/init.py); `put_ins_into_rs()` in [issue.py](code/issue.py) |
+| **Functional units** | Execute the operation for the configured number of cycles. Integer adder is not pipelined, FP adder and multiplier are pipelined, and there are *N* of each (`# of FUs`). | `fu_entry` in [init.py](code/init.py); `fu_exe`, `fu_finish`, `fu_fetch_from_rs` in [exe.py](code/exe.py) |
+| **Load/Store queue** | Keeps loads and stores in program order, with their address and data. Decides when a load may access memory (all older store addresses known and different) or take the data from an older matching store. | `ld_sd_entry` in [init.py](code/init.py); `put_ins_into_ldsd()` in [issue.py](code/issue.py); `mem()` in [mem.py](code/mem.py) |
+| **Address adder** (`ld_sd_exe`) | Computes the effective address `base register + immediate` of a load or store. | `ld_sd_execution()` in [exe.py](code/exe.py) |
+| **Memory port** (`ld_sd_mem`) and **data memory** | One non-pipelined access at a time to the 256-byte memory: a load reads, a store writes. | `ld_sd_mem` in [init.py](code/init.py); `mem()` in [mem.py](code/mem.py) |
+| **Branch resolution** (new) | When a branch finishes EX it compares the real outcome with the prediction. If wrong, it throws away every younger instruction, rebuilds the RAT and redirects the PC. | `resolve_branches`, `squash`, `rebuild_rat` in [branch.py](code/branch.py) |
+| **results_buffer + CDB** | Finished results wait in a queue; the CDB broadcasts one `(tag, value)` per cycle so every waiting instruction can pick up its operand. | `results_buffer`, `cdb`; `wb()`, `boroadcast()` in [wb.py](code/wb.py) |
+| **ROB** | Holds every in-flight instruction in program order, with its result and the cycle of every stage. It lets instructions finish out of order but become permanent (commit) in order, and it makes squashing a wrong path simple. | `ROB_entry` in [init.py](code/init.py); `put_ins_into_ROB()` in [issue.py](code/issue.py); `commit()` in [commit.py](code/commit.py) |
+| **Architectural registers** | The visible register state R0–R31, F0–F31 (R0 is always 0). Written only at commit, so they never contain wrong-path values. | `reg_int`, `reg_fp`; `modify_arch_reg()` in [commit.py](code/commit.py) |
 
 ### 1.3 Data stored in each important structure
 
-All of these are defined in [init.py](code/init.py). A *tag* is the name of a ROB entry (`ROB0`, `ROB1`, …); it is how an instruction says "I am waiting for the result of that instruction".
+A *tag* is the name of a ROB entry (`ROB0`, `ROB1`, …). It is how an instruction says "I am waiting for the result of that instruction". Types are the `namedtuple` definitions in [init.py](code/init.py).
 
-**ROB entry** (`ROB_entry`): one per in-flight instruction, kept in program order. This is what lets the machine execute out of order but commit in order.
+**ROB entry** (`ROB_entry`): one per in-flight instruction, in program order.
 
-| Field | Meaning |
-|---|---|
-| `ROB_tag` | name of this entry (`ROB<n>`, n wraps around at the ROB size); used as the rename tag |
-| `PC` | index of the instruction in the program (used to print it and to compute branch targets) |
-| `dest_tag` | where the result goes: the register name (`F1`, `R2`); for `Sd` the load/store-queue slot; for a branch the offset |
-| `value` | the result once known (for a branch: taken / not taken) |
-| `issue`, `exe`, `mem`, `cdb`, `commit` | lists of cycle numbers of each stage (`exe` = [start, end]; this is the printed table) |
-| `pred` | **new**: the branch prediction made at issue (True = taken) |
+| Field | Meaning | Where it is written |
+|---|---|---|
+| `ROB_tag` | name of the entry, `ROB<n>` with n wrapping at the ROB size; used as the rename tag | `put_ins_into_ROB()` (issue.py) |
+| `PC` | index of the instruction in the program | `put_ins_into_ROB()` |
+| `dest_tag` | where the result goes: register name (`F1`, `R2`); for `Sd` the load/store-queue slot; for a branch the offset | `put_ins_into_ROB()` |
+| `value` | the result; for a branch: taken / not taken | `boroadcast()` (wb.py); `fu_finish()` (exe.py) for branches |
+| `issue` | cycle of ISSUE | `put_ins_into_ROB()` |
+| `exe` | `[start, end]` cycles of EX | `fu_exe()`, `fu_fetch_from_rs()`, `ld_sd_execution()` (exe.py) |
+| `mem` | `[start, end]` cycles of MEM (loads and stores) | `mem()` (mem.py) |
+| `cdb` | cycle of the CDB broadcast (non-empty means "result is ready") | `boroadcast()` (wb.py) |
+| `commit` | cycle of commit | `commit()` (commit.py), `mem()` for stores |
+| `pred` | **new**: branch prediction made at issue (True = taken) | `put_ins_into_ROB()` (init False), `issue_one()` (issue.py) |
 
-**RAT** (`rat_int[32]`, `rat_fp[32]`): one slot per register. It holds either the *value* (the register is up to date) or the *tag* `ROBn` of the youngest in-flight instruction that will write the register. A copy of the architectural registers is `reg_int`, `reg_fp`.
+**RAT** (`rat_int[32]`, `rat_fp[32]`): one slot per register. The slot holds either the *value* (register is up to date) or the tag `ROBn` of the youngest in-flight instruction that will write it. Set up in [main.py](code/main.py), renamed in `update_rat()` ([issue.py](code/issue.py)), replaced by the value in `boroadcast()` ([wb.py](code/wb.py)), rebuilt after a misprediction by `rebuild_rat()` ([branch.py](code/branch.py)).
 
 **Reservation station entry** (`rs_entry`):
 
+| Field | Meaning | Where it is written |
+|---|---|---|
+| `busy` | slot in use | `put_ins_into_rs()` sets 1; `fu_fetch_from_rs()` and `squash()` clear it |
+| `op` | operation (`Add`, `Add.d`, `Mult.d`, `Bne`, …) | `put_ins_into_rs()` |
+| `tag_1st`, `value_1st`, `valid_1st` | first operand: the tag it waits for, its value, and whether the value is available | `put_ins_into_rs()` (from the RAT); `boroadcast()` fills the value |
+| `tag_2nd`, `value_2nd`, `valid_2nd` | the same for the second operand | same as above |
+| `dest_tag` | ROB tag of this instruction (where the result is sent) | `put_ins_into_rs()` |
+
+The instruction may start execution when `valid_1st` and `valid_2nd` are both 1 (checked in `fu_fetch_from_rs()`).
+
+**Functional unit entry** (`fu_entry`):
+
 | Field | Meaning |
 |---|---|
-| `busy` | slot in use |
-| `op` | operation (`Add`, `Add.d`, `Mult.d`, `Bne`, …) |
-| `tag_1st`, `value_1st`, `valid_1st` | first operand: the tag it waits for, its value, and whether the value is available |
-| `tag_2nd`, `value_2nd`, `valid_2nd` | the same for the second operand |
-| `dest_tag` | the ROB tag of this instruction (where the result is sent) |
-
-The instruction can go to a functional unit when `valid_1st` and `valid_2nd` are both 1.
-
-**Functional unit entry** (`fu_entry`): `op`, `value1`, `value2`, `dest_tag`, `cycle` (cycles already spent in EX; compared with the `Cycles in EX` configuration).
+| `op` | operation being executed |
+| `value1`, `value2` | the two operand values (copied from the RS by `add_entry_into_fu()` in exe.py) |
+| `dest_tag` | ROB tag of the instruction |
+| `cycle` | cycles already spent in EX; the operation finishes when it equals `Cycles in EX` (`fu_exe()`) |
 
 **Load/store queue entry** (`ld_sd_entry`), in program order:
 
-| Field | Meaning |
-|---|---|
-| `ld_sd_tag` | slot name in the queue |
-| `op` | `Ld` or `Sd` |
-| `reg_tag`, `reg_value`, `valid` | the base register operand (`8(R1)` → `R1`) and whether it is ready |
-| `immediate` | the offset |
-| `address`, `ready` | effective address (base + offset) and whether it has been calculated |
-| `data` | for `Sd`: the value to store (or the tag it still waits for) |
-| `dest_tag` | the ROB tag of this instruction |
+| Field | Meaning | Where it is written |
+|---|---|---|
+| `ld_sd_tag` | slot name in the queue | `put_ins_into_ldsd()` (issue.py) |
+| `op` | `Ld` or `Sd` | `put_ins_into_ldsd()` |
+| `reg_tag`, `reg_value`, `valid` | the base register of `imm(Rn)` and whether its value is ready | `put_ins_into_ldsd()`; `boroadcast()` fills the value |
+| `immediate` | the offset | `put_ins_into_ldsd()` |
+| `address`, `ready` | effective address and whether it has been calculated | `ld_sd_execution()` (exe.py) |
+| `data` | for `Sd`: the value to store (or the tag it still waits for) | `put_ins_into_ldsd()`; `boroadcast()` |
+| `dest_tag` | ROB tag of this instruction | `put_ins_into_ldsd()` |
 
-A load may go to memory when its address is ready and every older store has a known address that is different (otherwise it waits, or takes the data from the nearest older matching store by forwarding).
+A load goes to memory when its address is ready and every older store has a known, different address (`check_all_previous_Sd_no_match()`), or it takes the data from the nearest older store with the same address (`forward_check_from_sd()`), both in [mem.py](code/mem.py).
 
-**Other small structures**
+**Other structures**
 
-| Structure | Fields |
-|---|---|
-| `ld_sd_exe` (address unit) | `busy`, `cycle`, `value1`, `value2`, `dest_tag` |
-| `ld_sd_mem` (memory port) | `busy`, `cycle`, `op`, `address`, `data`, `dest_tag` |
-| `cdb` | `valid`, `value`, `dest_tag` |
-| `results_buffer` | queue of `fu_result` = (`value`, `dest_tag`) waiting for the CDB |
-| `PC` | `PC` (next instruction), `resume` (first cycle fetch is allowed, **new**), `resolved` (branches that finished EX this cycle, **new**) |
-| `btb[8]` | **new**: each entry is `(branch PC, target PC, taken bit)` or empty; index = `PC mod 8` |
+| Structure | Fields | Meaning / code |
+|---|---|---|
+| `ld_sd_exe` (address adder) | `busy`, `cycle`, `value1`, `value2`, `dest_tag` | the one address calculation in progress; `ld_sd_execution()` in exe.py |
+| `ld_sd_mem` (memory port) | `busy`, `cycle`, `op`, `address`, `data`, `dest_tag` | the one memory access in progress; `mem()` in mem.py |
+| `results_buffer` | queue of `fu_result` = (`value`, `dest_tag`) | finished results waiting for the CDB; `fu_finish()`, `mem()` append, `wb()` removes |
+| `cdb` | `valid`, `value`, `dest_tag` | the result being broadcast this cycle; `wb()` in wb.py |
+| `PC` | `PC`, `valid`, `resume`, `resolved` | `PC` = next instruction; **new**: `resume` = first cycle fetch is allowed, `resolved` = branches that finished EX this cycle |
+| `btb[8]` | **new**: `(branch PC, target PC, taken bit)` or empty | index = `PC mod 8`; `predict()`, `update_btb()` in branch.py |
+| `memory[256]` | one slot per byte address (the handbook's 256 B; words sit at multiples of 4) | read/written in `mem()`; non-zero values are printed at the end |
 
-Example: after `Add.d F1,F2,F3` is issued in cycle 1 as the first instruction, the structures contain:
+Example: right after `Add.d F1,F2,F3` is issued in cycle 1 as the first instruction, the structures contain:
 
 ```
 ROB[0]  = {ROB_tag: ROB0, PC: 0, dest_tag: F1, value: -, issue: [1], exe: [], mem: [], cdb: [], commit: [], pred: False}
